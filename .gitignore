@@ -1,7 +1,7 @@
 /log/
 
 /atrader/config/
-/__pycache__/
+/atrader/__pycache__/
 .pyc
 .project
 .pydevproject
