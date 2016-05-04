@@ -8,3 +8,5 @@
 .project
 .pydevproject
 /doc/
+/config/
+/tmp/
