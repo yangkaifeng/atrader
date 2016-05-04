@@ -8,12 +8,13 @@ import datetime as _datetime
 import logging
 import threading
 
-from constants import *
+from atrader.constants import *
+from atrader.model.base_model import *
 from atrader.model.strategy_config import * 
 from atrader.model.step_position import *
 from atrader.strategy.base_strategy import BaseStrategy
-from account import Account
-from strategy import astrategy
+from atrader.account import Account
+from atrader.strategy import astrategy
 
 
 class AStrategy(BaseStrategy):
@@ -22,7 +23,7 @@ class AStrategy(BaseStrategy):
     def init(self):
         self.lock = threading.Lock()
         self.is_active = False
-        self.account = Account(self.strategy_config.account_code)
+        self.account = Account(self.strategy_config.account_code, self.is_test)
         self.logger.debug('init AStrategy')
     
     def clock(self, event):
@@ -111,17 +112,12 @@ class AStrategy(BaseStrategy):
     
     
     def __check_entrust(self, c_price):
-        self.logger.info("checking open entrust")
         return_code = 200
-        e = self.account.get_entrust(self.strategy_config.open_steps[-1].entrust_no)
+        _entrust_no = self.strategy_config.open_steps[-1].entrust_no
+        self.logger.info("checking open entrust(%s)", _entrust_no)
+        e = self.account.get_entrust(_entrust_no)
         if e is None: # None means uncanceled/done
-            self.logger.info("Entrust completed! move open_steps to completed_steps!")
-            for p in self.strategy_config.open_steps:
-                p.status = EntrustStatus.COMPLETED #completed
-                p.updated_at = _datetime.datetime.now()
-                p.save()
-            self.strategy_config.completed_steps.extend(self.strategy_config.open_steps)
-            self.strategy_config.open_steps.clear()
+            self.__complete_entrust()            
             return_code = 100
         else:
             bs_type = self.strategy_config.open_steps[-1].bs_type
@@ -130,8 +126,8 @@ class AStrategy(BaseStrategy):
             is_too_high = step_no>1 and bs_type==BsType.BUY and c_price-step_price>=2*self.strategy_config.step_margin
             is_too_low = step_no<self.strategy_config.total_num and bs_type==BsType.SELL and step_price-c_price>=2*self.strategy_config.step_margin
             if is_too_high or is_too_low:
-                self.logger.warn("cancel open entrust because that price(%s, bs_type:%s) is not reasonable when the latest price is %s", 
-                                 step_price, bs_type, c_price)
+                self.logger.warn("cancel open entrust(%s) because that price(%s, bs_type:%s) is not reasonable when the latest price is %s", 
+                                 _entrust_no, step_price, bs_type, c_price)
                 self.__cancel_entrust()
                 return_code = 100
         return return_code
@@ -200,7 +196,8 @@ class AStrategy(BaseStrategy):
                     qty = self.strategy_config.unit_qty
                     source = None
                 else:#TODO - throw exception
-                    self.logger.error("UNEXPECTED - can't sell stocks after last_step.step_no==0")
+                    self.logger.error("UNEXPECTED - cannot sell stocks after last_step.step_no==0, current_price:%s \n strategy_config: %s", 
+                                      c_price, self.strategy_config)
             elif last_qty==last_step.source.step_qty:
                 self.logger.info("zero cleaning the last step chain! ")
                 ss_step = last_step.source.source 
@@ -230,11 +227,24 @@ class AStrategy(BaseStrategy):
         stock_code=self.strategy_config.stock_code
         self.logger.info('BUY_OR_SELL(bs_type=%s, stock_code=%s, price=%s, qty=%s)', bs_type, stock_code, price, qty)
         entrust_no = self.account.buy_or_sell(bs_type, stock_code, price, qty)
-        self.logger.debug("set open entrust_no(%s)", entrust_no)                
-        for s in self.strategy_config.open_steps:
-            s.entrust_no = entrust_no
-            s.save() #TODO - improve the perfromance with batch insert 
-            
+        self.logger.debug("set open entrust_no(%s)", entrust_no) 
+        with db.atomic():             
+            for s in self.strategy_config.open_steps:
+                s.entrust_no = entrust_no
+                s.save() #TODO - improve the perfromance with batch insert 
+     
+    @db.atomic()
+    def __complete_entrust(self):
+        _entrust_no = self.strategy_config.open_steps[-1].entrust_no
+        self.logger.info("Entrust(%s) completed! move open_steps to completed_steps!", _entrust_no)
+        for p in self.strategy_config.open_steps:
+            p.status = EntrustStatus.COMPLETED #completed
+            p.updated_at = _datetime.datetime.now()
+            p.save()
+        self.strategy_config.completed_steps.extend(self.strategy_config.open_steps)
+        self.strategy_config.open_steps.clear()
+    
+    @db.atomic()             
     def __cancel_entrust(self):
         _entrust_no = self.strategy_config.open_steps[-1].entrust_no
         self.logger.warn("CANCEL_ENTRUST - %s", _entrust_no)

@@ -20,7 +20,7 @@ def create_tabels():
 def setup_testdata():
     ss = [StrategyConfig(account_code='666623491885', stock_code='002024', unit_qty=100, total_num=10, 
                         start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2),
-          StrategyConfig(account_code='666623491885', stock_code='000400', unit_qty=100, total_num=10, 
+          StrategyConfig(account_code='666623491888', stock_code='000400', unit_qty=100, total_num=10, 
                         start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
 #     s = StrategyConfig.batch_insert(s)
     for s in ss:

@@ -4,11 +4,12 @@
 class BaseStrategy:
     name = 'BaseStrategy'
 
-    def __init__(self, event_engine, strategy_config, logger):
+    def __init__(self, event_engine, strategy_config, logger, is_test=True):
         self.event_engine = event_engine
         self.strategy_config = strategy_config
         custom_logger = self.log_handler()
         self.logger = logger if custom_logger is None else custom_logger
+        self.is_test = is_test
         self.init()
 
     def init(self):

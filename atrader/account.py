@@ -3,43 +3,34 @@ Created on 2016年3月25日
 
 @author: andy.yang
 '''
+import os
 import datetime
-import logging.config 
-import easytrader
-# from easytrader import helpers
+import logging
+from logging.handlers import RotatingFileHandler
 import random
+import easytrader
 
-from constants import *
+from atrader.constants import *
 from atrader.util import ahelper
 
 
-# logging.config.fileConfig("logging.conf")
-# create logger     
-logger = logging.getLogger(__name__)
-
-
 class Account(object):
-    '''
-    classdocs
-    '''
-    
+
     INSTANCES = {}
     
     #singleton
-    def __new__(cls, account_code):
-        
-#         account_code = kw['account_code'] if 'account_code' in kw else ''
+    def __new__(cls, account_code, is_test=True):
         instance = cls.INSTANCES[account_code] if account_code in cls.INSTANCES else None
+        
         if instance is None:
             instance = super(Account,cls).__new__(cls)
-            if IS_TEST:
-                logger.warning("%s TESTING MODE %s", "#"*6, "#"*6)
-            else:
-#                 helpers.disable_log() #disable easytrader debug logs
+            instance.logger = ahelper.get_custom_logger('account.%s' % account_code)
+            instance.is_test = is_test
+            if not instance.is_test:
                 instance.user = easytrader.use('ht', debug=False)
-                instance.user.prepare('config\\%s.json' % account_code)
+                instance.user.prepare(ahelper.get_config_path('%s.json' % account_code))
             cls.INSTANCES[account_code] = instance
-            logger.debug("initialized Account(%s)", account_code)
+            instance.logger.info("initialized Account(%s)", account_code)
             
         return instance
         
@@ -56,34 +47,37 @@ class Account(object):
 #     
     def buy_or_sell(self, bs_type, code, price, qty):
         result = []
-        if IS_TEST:
+        if self.is_test:
             result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
         elif bs_type==1:
             result = self.__buy(code, price, qty)
         elif bs_type == 2:
             result = self.__sell(code, price, qty)
-        logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
+        self.logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
                     code, bs_type, price, qty, result)
         return result[0]["entrust_no"] if result else None
     
     def cancel_entrust(self, entrust_no):
-        logger.info("ACTION - Cancel Entrust: %s", entrust_no)
-        if IS_TEST:
+        self.logger.info("ACTION - Cancel Entrust: %s", entrust_no)
+        if self.is_test:
             pass
         else:
-            return self.user.cancel_entrust(entrust_no)
+            _data = self.user.cancel_entrust(entrust_no)
+            self.logger.info("ACTION - Cancel Entrust(%s): %s", entrust_no, _data)
+            return _data
         
     def get_entrust(self, entrust_no): 
-        if IS_TEST:
+        if self.is_test:
             _r = random.uniform(1,100)
             return None if _r>=50 else Entrust(entrust_no, 2, 0)
         else:
             result = self.user.entrust
+            self.logger.debug("get entrust(%s): %s", entrust_no, result)
             if isinstance(result, list):
                 es = [e for e in self.user.entrust if e["entrust_no"]==entrust_no] 
                 if len(es)>1:
                     #TODO -handle this
-                    pass
+                    self.logger.error('UNEXPECTED ERROR WHEN GET_ENTRUST: %s', result)
                 elif es==[]:
                     return None # None means done
                 else:
@@ -97,16 +91,17 @@ class Account(object):
                                    es[0]["entrust_bs"] # "1" - buy "2" - sell
                                    )
             else:
-                logger.error("Can't find the entrust(%s), raw data: %s", entrust_no, result)
+                self.logger.error("Can't find the entrust(%s), raw data: %s", entrust_no, result)
                 return None # None means none or cancelled
-        
+     
+   
     def __buy(self, code, price, qty):
-        logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
+        self.logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
         return self.user.buy(code,price, qty)
         
     
     def __sell(self, code, price, qty):
-        logger.info("ACTION - SELL! stock=%s, price=%s, qty=%s", code, price, qty)
+        self.logger.info("ACTION - SELL! stock=%s, price=%s, qty=%s", code, price, qty)
         return self.user.sell(code, price, qty)
     
     

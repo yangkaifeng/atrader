@@ -5,8 +5,9 @@ Created on 2016年3月20日
 '''
 from peewee import *
 import datetime as _datetime
-from .base_model import BaseModel
+from atrader.model.base_model import BaseModel
 from atrader.util import ahelper
+from atrader.constants import *
 
 
 class StrategyConfig(BaseModel):
@@ -62,5 +63,5 @@ class StrategyConfig(BaseModel):
                                       self.step_margin,self.completed_steps,self.open_steps)
     @classmethod
     def select_opens(cls):
-        return cls.select().where(cls.status==2)
+        return cls.select().where(cls.status==StrategyStatus.ACTIVE)
     

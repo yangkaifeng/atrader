@@ -5,9 +5,9 @@ Created on 2016年3月20日
 '''
 from peewee import *
 import datetime as _datetime
-from ..util import ahelper
-from .base_model import BaseModel 
-from .strategy_config import StrategyConfig
+from atrader.util import ahelper
+from atrader.model.base_model import BaseModel 
+from atrader.model.strategy_config import StrategyConfig
 
 class StepPosition(BaseModel):
     '''

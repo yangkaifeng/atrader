@@ -6,20 +6,20 @@ import random
 import time
 import logging
 
-from constants import EventType as etype, MarketState
+from atrader.constants import EventType as etype, MarketState
 from atrader.util import ahelper
-from .event_engine import *
+from atrader.engine.event_engine import *
 
 logger = logging.getLogger(__name__)
-IS_TEST = True
 
 class QuotationEngine:
     """行情推送引擎基类"""
     EventType = etype.QUOTATION
 
-    def __init__(self, event_engine, stock_codes, push_interval=1):
+    def __init__(self, event_engine, stock_codes, push_interval=1, is_test=True):
         self.event_engine = event_engine
         self.is_active = True
+        self.is_test = is_test
         
         self.source = easyquotation.use("lf")
         self.stock_codes = stock_codes
@@ -37,7 +37,7 @@ class QuotationEngine:
         logger.info('quotation_engige is stopped')
         
     def clock(self, event):
-        if event.data==MarketState.OPEN and self.is_active==False:
+        if event.data==MarketState.OPEN:
             logger.info("market is open, activate the quotation_engine")
             self.start()
         elif event.data==MarketState.NOON_BREAK:
@@ -59,10 +59,11 @@ class QuotationEngine:
                 continue
             event = Event(event_type=self.EventType, data=response_data)
             self.event_engine.put(event)
+#             logger.debug('push %s message: %s', event.event_type, event.data)
             time.sleep(self.push_interval)
 
     def fetch_quotation(self):
-        if IS_TEST:
+        if self.is_test:
             p = ahelper.format_money(self.last_p*random.uniform(0.99,1.01))
             self.last_p = p
             _dict = dict()

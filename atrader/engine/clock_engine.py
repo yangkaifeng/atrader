@@ -4,9 +4,9 @@ from threading import Thread
 
 import logging
 import time
-from constants import EventType as etype, MarketState
+from atrader.constants import EventType as etype, MarketState
 from atrader.util import time as atime
-from .event_engine import *
+from atrader.engine.event_engine import *
 
 logger = logging.getLogger(__name__)
 
