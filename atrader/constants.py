@@ -3,8 +3,10 @@ Created on 2016年4月29日
 
 @author: andy.yang
 '''
+import os
 
-PROJECT_PATH = 'C:\\Users\\andy.yang\\workspace\\atrader' 
+global PROJECT_PATH
+PROJECT_PATH = os.getcwd() #'C:\\Users\\andy.yang\\workspace\\atrader'
 
 class EventType(object):
     CLOCK = 'clock_tick'

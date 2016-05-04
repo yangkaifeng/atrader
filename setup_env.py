@@ -7,7 +7,7 @@ import os
 from peewee import *
 import click
 
-from atrader.constants import *
+from atrader.constants import PROJECT_PATH
 from atrader.model.base_model import *
 from atrader.model.strategy_config import * 
 from atrader.model.step_position import *
