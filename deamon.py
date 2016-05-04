@@ -97,13 +97,13 @@ class Control :
     
 @click.command()
 @click.option('--action', help='start|stop|check|help') 
-@click.option('--is_test', default=True, help='default is_test=True')
+@click.option('--is_test', default=1, help='0:False,1:True')
 @click.option('--quotation_interval', default=5, help='default 5s')   
 @click.option('--project_path', default=None, help='main project folder')                                
 def run(action, is_test, quotation_interval, project_path):
     contr=Control()
     if 'start' == action:
-        contr.start(is_test, quotation_interval, project_path)
+        contr.start(False if is_test==0 else True, quotation_interval, project_path)
     elif 'stop' == action:
         contr.stop()
     elif 'check' == action:

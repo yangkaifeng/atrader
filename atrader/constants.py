@@ -4,7 +4,7 @@ Created on 2016年4月29日
 @author: andy.yang
 '''
 
-PROJECT_PATH = 'C:\\Users\\andy.yang\\workspace\\atrader' #TODO - configurable
+PROJECT_PATH = 'C:\\Users\\andy.yang\\workspace\\atrader' 
 
 class EventType(object):
     CLOCK = 'clock_tick'

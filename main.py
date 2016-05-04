@@ -13,7 +13,7 @@ trader_path = os.path.join(os.getcwd(), '..', 'easytrader')
 if trader_path not in sys.path:
     sys.path.append(trader_path)
 
-from atrader.util.ahelper import *
+from atrader.constants import *
 from atrader.main_engine import MainEngine
 
 
@@ -21,6 +21,9 @@ def main(is_test, quotation_interval, project_path=None):
     global PRJECT_PATH
     if project_path is not None:
         PROJECT_PATH = project_path
+    else:
+        PROJECT_PATH = os.getcwd()
+    print('PROJECT_PATH=%s' % PROJECT_PATH)
     MainEngine(is_test, quotation_interval).start()
 
 if __name__ == '__main__':
