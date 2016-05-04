@@ -11,9 +11,11 @@ import logging
 from atrader.constants import *
 
 def get_config_path(file_name):
+    global PROJECT_PATH
     return os.path.join(PROJECT_PATH, 'config', file_name)
 
 def get_log_path(file_name):
+    global PROJECT_PATH
     return os.path.join(PROJECT_PATH, 'log', '%s.log' % file_name)
 
 def get_custom_logger(name):
