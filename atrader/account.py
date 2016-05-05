@@ -8,11 +8,16 @@ import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import random
+import time
 import easytrader
 
 from atrader.constants import *
 from atrader.util import ahelper
 
+class NotLoginException(Exception):
+    def __init__(self, result=None):
+        super(NotLoginException, self).__init__()
+        self.result = result
 
 class Account(object):
 
@@ -45,16 +50,30 @@ class Account(object):
 #             d = self.quotation.stocks(code)[code]
 #             return {"now":d["now"],"ask1":d["ask1"], "bid1":d["bid1"]}    
 #     
+    
+    def autologin(self):
+        self.logger.info('account auto-login')
+        self.user.autologin()
+    
     def buy_or_sell(self, bs_type, code, price, qty):
         result = []
         if self.is_test:
             result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
+#             if bs_type==1:
+#                 result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
+#             else:
+#                 result = {'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
         elif bs_type==1:
             result = self.__buy(code, price, qty)
         elif bs_type == 2:
             result = self.__sell(code, price, qty)
         self.logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
                     code, bs_type, price, qty, result)
+        #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
+        if isinstance(result, dict) and result['cssweb_msg']=='请重新登录':
+            self.logger.warn('require to login again')
+            raise NotLoginException('re-login')
+            
         return result[0]["entrust_no"] if result else None
     
     def cancel_entrust(self, entrust_no):
@@ -64,24 +83,26 @@ class Account(object):
         else:
             _data = self.user.cancel_entrust(entrust_no)
             self.logger.info("ACTION - Cancel Entrust(%s): %s", entrust_no, _data)
+            #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
+            if isinstance(_data, dict) and _data['cssweb_msg']=='请重新登录':
+                self.logger.warn('require to login again')
+                raise NotLoginException('re-login')
             return _data
         
     def get_entrust(self, entrust_no): 
+        _data = None
         if self.is_test:
             _r = random.uniform(1,100)
-            return None if _r>=50 else Entrust(entrust_no, 2, 0)
+            _data = None if _r>=50 else Entrust(entrust_no, 2, 0)
         else:
             result = self.user.entrust
-            self.logger.debug("get entrust(%s): %s", entrust_no, result)
+            self.logger.debug("get entrust list: %s", result)
             if isinstance(result, list):
                 es = [e for e in self.user.entrust if e["entrust_no"]==entrust_no] 
-                if len(es)>1:
-                    #TODO -handle this
-                    self.logger.error('UNEXPECTED ERROR WHEN GET_ENTRUST: %s', result)
-                elif es==[]:
-                    return None # None means done
+                if es==[]:
+                    _data = None # None means done
                 else:
-                    return Entrust(es[0]["entrust_no"], 
+                    _data = Entrust(es[0]["entrust_no"], 
                                    es[0]["entrust_status"], #TODO - status mapping, "1" - pending, "2" - done
                                    es[0]["business_price"], 
                                    es[0]["business_amount"],
@@ -90,10 +111,21 @@ class Account(object):
                                    es[0]["entrust_amount"], 
                                    es[0]["entrust_bs"] # "1" - buy "2" - sell
                                    )
+            elif isinstance(result, dict):
+                self.logger.warn("raw data to get the entrust(%s): %s", entrust_no, result)
+                #{'cssweb_code': 'success', 'cssweb_type': 'GET_CANCEL_LIST', 'item': None}
+                if result['cssweb_code']=='success' and result['item'] is None:
+                    _data = None
+                elif result['cssweb_msg']=='请重新登录':
+                    self.logger.warn('require to login again')
+                    raise NotLoginException('re-login')
+                else:
+                    self.logger.error("UNEXPECTED DATA to get the entrust(%s)", entrust_no)
+                    raise Exception('UNEXPECTED DATA')
             else:
-                self.logger.error("Can't find the entrust(%s), raw data: %s", entrust_no, result)
-                return None # None means none or cancelled
-     
+                self.logger.error("UNEXPECTED DATA to get the entrust(%s): %s", entrust_no, result)
+                raise Exception('UNEXPECTED DATA')
+        return _data
    
     def __buy(self, code, price, qty):
         self.logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
@@ -122,18 +154,15 @@ class Entrust:
                 self.actual_price,self.actual_qty)   
         
 if __name__ == '__main__':
-#     print(id(Account()))
-    account = Account('666623491885')
-    acc = Account('666623491885')
+    Config.PROJECT_PATH = os.path.join(os.getcwd(), '..')
+    print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
+    acc = Account('666623491885', is_test=False)
     code = "002024"
-#     print(account.__dict__)
-#     print(account.get_stock("600602"))
-#     print(account.buy_or_sell(1,code, 11.0, 100))
-#     print(account.buy_or_sell(2,code, 12.5, 100))
-#     print(account.cancel_entrust("11833"))
-    print(account.user.entrust)
-    print(acc.get_stock(code))
-#     print(account.get_entrust("11834"))
+    print('************testing**************')
+    for i in list(range(1,10)):
+        time.sleep(60*i)
+        print('No.%s - balance: %s' % (i,acc.user.balance))
+        
 #     print(account.user.get_exchangebill("20160405","20160415"))
     
     

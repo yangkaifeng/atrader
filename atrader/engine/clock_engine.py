@@ -31,6 +31,7 @@ class ClockEngine:
         while self.is_active:
 
             if atime.is_holiday_today():
+                logger.debug('today is holiday')
                 pass
             elif atime.is_tradetime_now():  # 工作日，干活了
                 if self.trading_state == True:

@@ -5,8 +5,8 @@ Created on 2016年4月29日
 '''
 import os
 
-global PROJECT_PATH
-PROJECT_PATH = os.getcwd() #'C:\\Users\\andy.yang\\workspace\\atrader'
+class Config(object):
+    PROJECT_PATH = os.getcwd()
 
 class EventType(object):
     CLOCK = 'clock_tick'

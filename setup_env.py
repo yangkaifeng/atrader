@@ -7,7 +7,7 @@ import os
 from peewee import *
 import click
 
-from atrader.constants import PROJECT_PATH
+from atrader.constants import *
 from atrader.model.base_model import *
 from atrader.model.strategy_config import * 
 from atrader.model.step_position import *
@@ -32,7 +32,7 @@ def test_data():
     
 def prod_data():
     create_tabels()
-    ss = [StrategyConfig(account_code='666623491888', stock_code='000400', unit_qty=200, total_num=8, 
+    ss = [StrategyConfig(account_code='666623491885', stock_code='000400', unit_qty=200, total_num=8, 
                         start_price=15.87, step_ratio=0.0162, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
     for s in ss:
         s.save()
@@ -51,7 +51,6 @@ def run(env, action):
             prod_data()
 
 if __name__ == '__main__':
-    global PRJECT_PATH
-    PROJECT_PATH = os.getcwd()
-    print('PROJECT_PATH=%s' % PROJECT_PATH)
+    Config.PROJECT_PATH = os.getcwd()
+    print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
     run()

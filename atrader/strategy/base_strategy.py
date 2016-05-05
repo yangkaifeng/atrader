@@ -56,7 +56,7 @@ class BaseStrategy:
         try:
             self.strategy(event)
         except Exception as e:
-            self.logger.error(e)
+            self.logger.exception('unhandled exception during strategy.run()')
             raise
 
     def clock(self, event):

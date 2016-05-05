@@ -9,11 +9,13 @@ import time
 
 @lru_cache()
 def is_holiday(day):
-    api = 'http://www.easybots.cn/api/holiday.php'
-    params = {'d': day}
-    rep = requests.get(api, params)
-    res = rep.json()[day if isinstance(day, str) else day[0]]
-    return True if res == "1" else False
+    weekday = datetime.datetime.strptime(day, '%Y%m%d').isoweekday()
+    return weekday>5 #TODO - implement the legal holiday
+#     api = 'http://www.easybots.cn/api/holiday.php'
+#     params = {'d': day}
+#     rep = requests.get(api, params)
+#     res = rep.json()[day if isinstance(day, str) else day[0]]
+#     return True if res == "1" else False
 
 def is_holiday_today():
     today = datetime.date.today().strftime('%Y%m%d')

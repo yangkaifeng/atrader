@@ -15,6 +15,8 @@ from atrader.model.step_position import *
 from atrader.strategy.base_strategy import BaseStrategy
 from atrader.account import Account
 from atrader.strategy import astrategy
+from atrader.account import NotLoginException
+
 
 
 class AStrategy(BaseStrategy):
@@ -45,33 +47,38 @@ class AStrategy(BaseStrategy):
             pass
     
     def strategy(self, event):
-        if self.lock.acquire():
-            if self.is_active:
-                c_price = event.data[self.strategy_config.stock_code]["now"]
-                return_code = self.__think(c_price)
-                
-                if return_code==100: #continue
-                    self.logger.debug("continue to do the strategy immediately")
-                    self.lock.release()
-                    self.strategy(event)
-                elif return_code==300: #close the strategy
-                    self.logger.info("close the strategy right now")
-                    self.logger.info("set strategy.status to close")
-                    self.strategy_config.status=StrategyStatus.CLOSED
-                    self.strategy_config.updated_at = _datetime.datetime.now()
-                    self.strategy_config.save()
-                    self.logger.info("remove the strategy from event_engine")
-                    self.event_engine.unregister(EventType.QUOTATION, self.run)
-                    self.event_engine.unregister(EventType.CLOCK, self.clock)
-                    self.is_active = False
-                else:
-                    pass
+        try:
+            if self.lock.acquire():
+                if self.is_active:
+                    c_price = event.data[self.strategy_config.stock_code]["now"]
+                    self.logger.debug("current price: %s", c_price)
+                    return_code = self.__think(c_price)
                     
+                    if return_code==100: #continue
+                        self.logger.debug("continue to do the strategy immediately")
+                        self.lock.release()
+                        self.strategy(event)
+                    elif return_code==300: #close the strategy
+                        self.logger.info("close the strategy right now")
+                        self.logger.info("set strategy.status to close")
+                        self.strategy_config.status=StrategyStatus.CLOSED
+                        self.strategy_config.updated_at = _datetime.datetime.now()
+                        self.strategy_config.save()
+                        self.logger.info("remove the strategy from event_engine")
+                        self.event_engine.unregister(EventType.QUOTATION, self.run)
+                        self.event_engine.unregister(EventType.CLOCK, self.clock)
+                        self.is_active = False
+                    else:
+                        pass
+        except NotLoginException:
+            self.logger.warn('catch the NotLoginException')
+            self.account.autologin()
+        finally:
             try:
                 self.lock.release()
             except:
-                pass                
-    
+                pass
+        
     
     def __think(self, c_price):
         '''
@@ -80,8 +87,6 @@ class AStrategy(BaseStrategy):
         think actions 
         return {"code":100/200/300,"bs_type":1 or 2, "price":price, "qty":qty}
         '''
-        self.logger.debug("think about what to do")
-        
         dif_no = int(abs(self.strategy_config.start_price-c_price)//self.strategy_config.step_margin)
         self.logger.debug("current price: %s, dif_no:%s", c_price, dif_no)
         return_code = 200
@@ -90,13 +95,18 @@ class AStrategy(BaseStrategy):
             self.logger.debug("already have an entrust")
             return_code = self.__check_entrust(c_price)
         elif self.strategy_config.completed_steps==[]:
-            if c_price<=self.strategy_config.start_price: #buy first position 
+            
+            if self.strategy_config.low_stop_price < c_price <=self.strategy_config.start_price: #buy first position 
                 self.logger.info("new first batch of positions")
                 for no in range(1,dif_no+2):
                     start_pos = self.strategy_config.open_steps[0] if self.strategy_config.open_steps else None
                     s_price = ahelper.format_money(self.strategy_config.start_price-(no-1)*self.strategy_config.step_margin)
                     self.strategy_config.open_steps.append(StepPosition(source=start_pos, step_no=no, step_price=s_price, step_qty=no*self.strategy_config.unit_qty, 
                                                         price=c_price, bs_type=BsType.BUY, status=EntrustStatus.OPEN, strategy=self.strategy_config))
+            elif c_price <= self.strategy_config.low_stop_price or c_price >= self.strategy_config.high_stop_price:
+                self.logger.warn("STOP_STRATEGY (current price:%s, low_stop_price:%s, High_stop_price:%s)", 
+                                 c_price, self.strategy_config.low_stop_price, self.strategy_config.high_stop_price)
+                return_code = 300 #stop the stragety
             else:
                 self.logger.debug("do nothing cause high price: (target price: %s, current price: %s)", self.strategy_config.start_price, c_price)
         else:
@@ -113,16 +123,24 @@ class AStrategy(BaseStrategy):
     
     def __check_entrust(self, c_price):
         return_code = 200
-        _entrust_no = self.strategy_config.open_steps[-1].entrust_no
+        _step = self.strategy_config.open_steps[-1]
+        _entrust_no = _step.entrust_no
         self.logger.info("checking open entrust(%s)", _entrust_no)
+        
+        if _entrust_no is None:
+            self.logger.info('handle the un-executed open steps: %s', self.strategy_config.open_steps)
+            self.__buy_or_sell(_step.bs_type, _step.price,
+                               sum([e.step_qty for e in self.strategy_config.open_steps]))
+            return return_code
+        
         e = self.account.get_entrust(_entrust_no)
         if e is None: # None means uncanceled/done
             self.__complete_entrust()            
             return_code = 100
         else:
-            bs_type = self.strategy_config.open_steps[-1].bs_type
-            step_no = self.strategy_config.open_steps[-1].step_no
-            step_price = self.strategy_config.open_steps[-1].step_price
+            bs_type = _step.bs_type
+            step_no = _step.step_no
+            step_price = _step.step_price
             is_too_high = step_no>1 and bs_type==BsType.BUY and c_price-step_price>=2*self.strategy_config.step_margin
             is_too_low = step_no<self.strategy_config.total_num and bs_type==BsType.SELL and step_price-c_price>=2*self.strategy_config.step_margin
             if is_too_high or is_too_low:

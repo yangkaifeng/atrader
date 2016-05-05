@@ -18,12 +18,11 @@ from atrader.main_engine import MainEngine
 
 
 def main(is_test, quotation_interval, project_path=None):
-    global PRJECT_PATH
     if project_path is not None:
-        PROJECT_PATH = project_path
+        Config.PROJECT_PATH = project_path
     else:
-        PROJECT_PATH = os.getcwd()
-    print('PROJECT_PATH=%s' % PROJECT_PATH)
+        Config.PROJECT_PATH = os.getcwd()
+    print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
     MainEngine(is_test, quotation_interval).start()
 
 if __name__ == '__main__':
