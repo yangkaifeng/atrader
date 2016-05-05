@@ -17,6 +17,7 @@ from atrader.account import Account
 from atrader.strategy import astrategy
 
 
+
 class AStrategy(BaseStrategy):
     name = 'AStrategy'
     
@@ -48,6 +49,7 @@ class AStrategy(BaseStrategy):
         if self.lock.acquire():
             if self.is_active:
                 c_price = event.data[self.strategy_config.stock_code]["now"]
+                self.logger.debug("current price: %s", c_price)
                 return_code = self.__think(c_price)
                 
                 if return_code==100: #continue
@@ -80,8 +82,6 @@ class AStrategy(BaseStrategy):
         think actions 
         return {"code":100/200/300,"bs_type":1 or 2, "price":price, "qty":qty}
         '''
-        self.logger.debug("think about what to do")
-        
         dif_no = int(abs(self.strategy_config.start_price-c_price)//self.strategy_config.step_margin)
         self.logger.debug("current price: %s, dif_no:%s", c_price, dif_no)
         return_code = 200
@@ -90,13 +90,18 @@ class AStrategy(BaseStrategy):
             self.logger.debug("already have an entrust")
             return_code = self.__check_entrust(c_price)
         elif self.strategy_config.completed_steps==[]:
-            if c_price<=self.strategy_config.start_price: #buy first position 
+            
+            if self.strategy_config.low_stop_price < c_price <=self.strategy_config.start_price: #buy first position 
                 self.logger.info("new first batch of positions")
                 for no in range(1,dif_no+2):
                     start_pos = self.strategy_config.open_steps[0] if self.strategy_config.open_steps else None
                     s_price = ahelper.format_money(self.strategy_config.start_price-(no-1)*self.strategy_config.step_margin)
                     self.strategy_config.open_steps.append(StepPosition(source=start_pos, step_no=no, step_price=s_price, step_qty=no*self.strategy_config.unit_qty, 
                                                         price=c_price, bs_type=BsType.BUY, status=EntrustStatus.OPEN, strategy=self.strategy_config))
+            elif c_price <= self.strategy_config.low_stop_price or c_price >= self.strategy_config.high_stop_price:
+                self.logger.warn("STOP_STRATEGY (current price:%s, low_stop_price:%s, High_stop_price:%s)", 
+                                 c_price, self.strategy_config.low_stop_price, self.strategy_config.high_stop_price)
+                return_code = 300 #stop the stragety
             else:
                 self.logger.debug("do nothing cause high price: (target price: %s, current price: %s)", self.strategy_config.start_price, c_price)
         else:
