@@ -47,13 +47,13 @@ class StrategyConfig(BaseModel):
     @property
     def completed_steps(self):
         if not hasattr(self, '_completed_steps'):
-            self._completed_steps = [p for p in self.steps if p.status==2]
+            self._completed_steps = [p for p in self.steps if p.status==EntrustStatus.COMPLETED]
         return self._completed_steps
     
     @property
     def open_steps(self):
         if not hasattr(self, '_open_steps'):
-            self._open_steps = [p for p in self.steps if p.status==1]
+            self._open_steps = [p for p in self.steps if p.status==EntrustStatus.OPEN]
         return self._open_steps
   
 

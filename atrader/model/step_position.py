@@ -8,6 +8,7 @@ import datetime as _datetime
 from atrader.util import ahelper
 from atrader.model.base_model import BaseModel 
 from atrader.model.strategy_config import StrategyConfig
+from email.policy import default
 
 class StepPosition(BaseModel):
     '''
@@ -18,7 +19,8 @@ class StepPosition(BaseModel):
     step_no = IntegerField()
     step_price = DoubleField()
     step_qty = IntegerField()
-    price = DoubleField()
+    price = DoubleField() #actual price
+    qty = IntegerField(null=True) #actual qty
     bs_type = IntegerField()
     entrust_no = CharField()
     status = IntegerField()

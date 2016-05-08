@@ -250,6 +250,7 @@ class AStrategy(BaseStrategy):
         with db.atomic():             
             for s in self.strategy_config.open_steps:
                 s.entrust_no = entrust_no
+                s.qty = s.step_qty
                 s.save() #TODO - improve the perfromance with batch insert 
      
     @db.atomic()
@@ -265,10 +266,35 @@ class AStrategy(BaseStrategy):
     
     @db.atomic()             
     def __cancel_entrust(self):
-        _entrust_no = self.strategy_config.open_steps[-1].entrust_no
+        _step = self.strategy_config.open_steps[-1]
+        _entrust_no = _step.entrust_no
         self.logger.warn("CANCEL_ENTRUST - %s", _entrust_no)
-        self.account.cancel_entrust(_entrust_no)
-        for p in self.strategy_config.open_steps:
-            p.status = EntrustStatus.CANCELED # canceled
-            p.save()
-        self.strategy_config.open_steps.clear()
+        
+        if _entrust_no is None:
+            self.logger.info('do nothing to cancel the un-executed open steps: %s', self.strategy_config.open_steps)
+            return
+        
+        self.logger.info('check entrust before canceling')
+        e = self.account.get_entrust(_entrust_no)
+        if e is None: # None means uncanceled/done
+            self.logger.warn('entrust is completed before canceling')
+            self.__complete_entrust()            
+        else:
+            actual_qty = e.actual_qty #deal with the partial completed case
+            self.account.cancel_entrust(_entrust_no)
+            for p in self.strategy_config.open_steps:
+                if p.step_qty <= actual_qty:
+                    actual_qty -= p.step_qty
+                    p.status = EntrustStatus.COMPLETED
+                    p.save()
+                    self.strategy_config.completed_steps.append(p)
+                elif 0 < actual_qty <= p.step_qty:
+                    actual_qty -= 0
+                    p.qty = actual_qty #part completed
+                    p.status = EntrustStatus.COMPLETED
+                    p.save()
+                    self.strategy_config.completed_steps.append(p)
+                else:
+                    p.status = EntrustStatus.CANCELED # canceled
+                    p.save()
+            self.strategy_config.open_steps.clear()

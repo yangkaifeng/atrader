@@ -138,7 +138,7 @@ class Account(object):
     
     
 class Entrust:
-    def __init__(self, no, status, actual_price, actual_qty=None, stock=None, price=None, qty=None, bs_type=None):
+    def __init__(self, no, status, actual_price, actual_qty=0, stock=None, price=None, qty=None, bs_type=None):
         self.entrust_no = no
         self.stock = stock
         self.price = price
