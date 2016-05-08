@@ -19,6 +19,7 @@ from atrader.account import NotLoginException
 
 
 
+
 class AStrategy(BaseStrategy):
     name = 'AStrategy'
     
