@@ -40,6 +40,7 @@ class EventEngine:
             except Empty:
                 pass
             except:
+                logger.exception('unhandled exception during event_engine.__run()')
                 raise
 
     def __process(self, event):
