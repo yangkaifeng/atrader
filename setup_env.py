@@ -53,10 +53,12 @@ def history(code, qty, price):
     myconfig = _matchs[0]
     steps = [p for p in myconfig.steps if p.status==EntrustStatus.COMPLETED]
     _qty = qty
+    _source = None
     if steps==[]:
         last_step = None
     elif steps[-1].bs_type==BsType.BUY:
         last_step = steps[-1]
+        _source = last_step.source
     else:
         print('too complex, do nothing')
         return
@@ -64,7 +66,7 @@ def history(code, qty, price):
     while last_step is None or (_qty-last_step.step_qty>=myconfig.unit_qty and last_step.step_no<myconfig.total_num):
         _step = StepPosition()
         _step.strategy = myconfig
-        _step.source = last_step.source if last_step else None
+        _step.source = _source
         _step.step_no = 1 if last_step is None else last_step.step_no+1
         _step.step_price = myconfig.start_price if last_step is None else ahelper.format_money(last_step.step_price-myconfig.step_margin)
         _step.step_qty = myconfig.unit_qty if last_step is None else last_step.step_qty+myconfig.unit_qty
@@ -74,6 +76,8 @@ def history(code, qty, price):
         _step.entrust_no = 'history'
         _step.status = EntrustStatus.COMPLETED 
         _step.save()
+        if _source is None:
+            _source = _step
         last_step = _step
         _qty -= last_step.step_qty
         if _qty-last_step.step_qty<myconfig.unit_qty:
