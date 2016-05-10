@@ -5,17 +5,18 @@ Created on 2016年3月25日
 '''
 import datetime
 import logging.config 
-import easyquotation
 import easytrader
-from easytrader import helpers
+# from easytrader import helpers
 import random
-import helper
-from main import *
+
+from constants import *
+from atrader.util import ahelper
+
 
 # logging.config.fileConfig("logging.conf")
 # create logger     
 logger = logging.getLogger(__name__)
-logger2 = logging.getLogger("monitor")
+
 
 class Account(object):
     '''
@@ -32,52 +33,37 @@ class Account(object):
         if instance is None:
             instance = super(Account,cls).__new__(cls)
             if IS_TEST:
-                instance.last_p = 9.50 #for testing
                 logger.warning("%s TESTING MODE %s", "#"*6, "#"*6)
             else:
 #                 helpers.disable_log() #disable easytrader debug logs
-                instance.quotation = easyquotation.use("lf", debug=False) 
                 instance.user = easytrader.use('ht', debug=False)
                 instance.user.prepare('config\\%s.json' % account_code)
             cls.INSTANCES[account_code] = instance
             logger.debug("initialized Account(%s)", account_code)
             
         return instance
-
-    
-    def __buy(self, code, price, qty):
-        logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
-        if IS_TEST:
-            return [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
-        else:
-            return self.user.buy(code,price, qty)
         
     
-    def __sell(self, code, price, qty):
-        logger.info("ACTION - SELL! stock=%s, price=%s, qty=%s", code, price, qty)
-        if IS_TEST:
-            return [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
-        else:
-            return self.user.sell(code, price, qty)
-    
-    def get_stock(self,code):
-        if IS_TEST:
-            p = helper.format_money(self.last_p*random.uniform(0.99,1.01))
-            self.last_p = p
-#             logger2.debug("current price: %s", p)
-            return {"now":p,"ask1":p+0.01, "bid1":p-0.01}
-        else:
-            d = self.quotation.stocks(code)[code]
-            return {"now":d["now"],"ask1":d["ask1"], "bid1":d["bid1"]}    
-    
+#     def get_stock(self,code):
+#         if IS_TEST:
+#             p = ahelper.format_money(self.last_p*random.uniform(0.99,1.01))
+#             self.last_p = p
+# #             logger2.debug("current price: %s", p)
+#             return {"now":p,"ask1":p+0.01, "bid1":p-0.01}
+#         else:
+#             d = self.quotation.stocks(code)[code]
+#             return {"now":d["now"],"ask1":d["ask1"], "bid1":d["bid1"]}    
+#     
     def buy_or_sell(self, bs_type, code, price, qty):
         result = []
-        if bs_type==1:
+        if IS_TEST:
+            result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
+        elif bs_type==1:
             result = self.__buy(code, price, qty)
         elif bs_type == 2:
             result = self.__sell(code, price, qty)
-        logger.info("BUY_OR_SELL - bs_type:%s, return raw data:%s", bs_type, result)
-        logger2.debug("price:%s, qty:%s", price, qty if bs_type==1 else -1*qty)
+        logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
+                    code, bs_type, price, qty, result)
         return result[0]["entrust_no"] if result else None
     
     def cancel_entrust(self, entrust_no):
@@ -89,7 +75,8 @@ class Account(object):
         
     def get_entrust(self, entrust_no): 
         if IS_TEST:
-            return None
+            _r = random.uniform(1,100)
+            return None if _r>=50 else Entrust(entrust_no, 2, 0)
         else:
             result = self.user.entrust
             if isinstance(result, list):
@@ -110,10 +97,19 @@ class Account(object):
                                    es[0]["entrust_bs"] # "1" - buy "2" - sell
                                    )
             else:
-                logger.warning("Can't find the entrust-%s", entrust_no)
+                logger.error("Can't find the entrust(%s), raw data: %s", entrust_no, result)
                 return None # None means none or cancelled
         
+    def __buy(self, code, price, qty):
+        logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
+        return self.user.buy(code,price, qty)
         
+    
+    def __sell(self, code, price, qty):
+        logger.info("ACTION - SELL! stock=%s, price=%s, qty=%s", code, price, qty)
+        return self.user.sell(code, price, qty)
+    
+    
 class Entrust:
     def __init__(self, no, status, actual_price, actual_qty=None, stock=None, price=None, qty=None, bs_type=None):
         self.entrust_no = no
