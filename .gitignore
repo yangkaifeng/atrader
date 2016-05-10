@@ -2,6 +2,8 @@
 
 /atrader/config/
 /atrader/__pycache__/
+/atrader/*/__pycache__/
+/.settings/
 .pyc
 .project
 .pydevproject
