@@ -77,10 +77,13 @@ class Control :
     
     def stop(self):
         filePid = read_pid()
+        _,osname = get_sysinfo()
         if filePid is not None and filePid > 0:
             print('kill %s' % filePid)
-            kill(filePid)
-            rm_pid()
+            if osname=='Windows':
+                kill(filePid)
+            else:
+                rm_pid()
         else :
             print('Process has closed')
             
