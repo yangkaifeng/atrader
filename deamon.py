@@ -22,7 +22,7 @@ def get_sysinfo():
 #     return p[0]
 
 def get_pid_path():
-    return os.path.join(os.getcwd(), 'tmp', 'atradr.pid')
+    return os.path.join(os.getcwd(), 'tmp', 'atrader.pid')
 #     return get_path() +'/tmp/yqs.pid'
 
 def check_pid(pid = 0,osname=''):
