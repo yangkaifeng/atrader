@@ -13,7 +13,7 @@ from atrader.model.strategy_config import *
 from atrader.model.step_position import *
 
 
-def create_tabels():
+def create_tables():
     db.connect()
     models = [StrategyConfig, StepPosition]
     db.drop_tables(models, safe=True)
@@ -90,7 +90,7 @@ def history(code, qty, price):
 @click.option('--action', default='all', help='data|table|all')
 def run(env, action):
     if action in ['table', 'all']:
-        create_tabels()
+        create_tables()
     if action in ['data', 'all']:
         if env=='dev':
             test_data()

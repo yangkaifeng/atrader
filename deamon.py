@@ -80,6 +80,7 @@ class Control :
             time.sleep(1)
     
     def stop(self):
+<<<<<<< HEAD
         _pid = read_pid()
         _,osname = get_sysinfo()
         if _pid is not None and _pid > 0:
@@ -89,6 +90,16 @@ class Control :
             else:
                 kill_linux(_pid)
             rm_pid()
+=======
+        filePid = read_pid()
+        _,osname = get_sysinfo()
+        if filePid is not None and filePid > 0:
+            print('kill %s' % filePid)
+            if osname=='Windows':
+                kill(filePid)
+            else:
+                rm_pid()
+>>>>>>> refs/remotes/origin/master
         else :
             print('Process has closed')
             
