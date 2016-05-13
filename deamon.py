@@ -6,6 +6,7 @@ import subprocess
 import sys
 import ctypes
 import click
+from signal import SIGTERM
 
 import main
 
@@ -48,11 +49,14 @@ def rm_pid():
     if os.path.exists(get_pid_path()):
         os.remove(get_pid_path())
         
-def kill(pid):
+def kill_win(pid):
     """kill function for Win32"""
     kernel32 = ctypes.windll.kernel32
     handle = kernel32.OpenProcess(1, 0, pid)
     return (0 != kernel32.TerminateProcess(handle, 0))
+
+def kill_linux(pid):
+    os.kill(pid, SIGTERM)
         
 def check_run():
     pid,osname = get_sysinfo()
@@ -76,10 +80,14 @@ class Control :
             time.sleep(1)
     
     def stop(self):
-        filePid = read_pid()
-        if filePid is not None and filePid > 0:
-            print('kill %s' % filePid)
-            kill(filePid)
+        _pid = read_pid()
+        _,osname = get_sysinfo()
+        if _pid is not None and _pid > 0:
+            print('kill %s' % _pid)
+            if osname=='Windows':
+                kill_win(_pid)
+            else:
+                kill_linux(_pid)
             rm_pid()
         else :
             print('Process has closed')
