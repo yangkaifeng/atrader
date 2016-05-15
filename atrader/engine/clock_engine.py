@@ -7,6 +7,7 @@ import time
 from atrader.constants import EventType as etype, MarketState
 from atrader.util import time as atime
 from atrader.engine.event_engine import *
+from asyncio.tasks import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class ClockEngine:
 
             if atime.is_holiday_today():
                 logger.debug('today is holiday')
+                time.sleep(60)
                 pass
             elif atime.is_tradetime_now():  # 工作日，干活了
                 if self.trading_state == True:
