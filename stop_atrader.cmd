@@ -1,1 +1,1 @@
-python deamon.py --action=stop
+python daemon.py --action=stop

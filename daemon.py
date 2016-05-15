@@ -212,6 +212,8 @@ def run(action, is_test, quotation_interval, project_path):
     elif os_name == 'Linux':
         pidfile = '/tmp/atrder_process.pid'
         logfile = os.path.join(os.getcwd(), 'daemon.log')
+        if project_path is None:
+            project_path = os.getcwd()
         daemon = Daemon(pidfile, istest, quotation_interval, project_path, 
                         stdout=logfile, stderr=logfile)
         

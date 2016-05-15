@@ -1,1 +1,1 @@
-python deamon.py --action=start --is_test=1
+python daemon.py --action=start --is_test=1
