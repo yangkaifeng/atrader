@@ -78,7 +78,7 @@ class AStrategy(BaseStrategy):
             try:
                 self.lock.release()
             except:
-                self.logger.exception('unhandled exception during strategy.lock.release()')
+                self.logger.error('release unlocked lock')
                 pass
         
     
