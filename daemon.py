@@ -211,7 +211,7 @@ def run(action, is_test, quotation_interval, project_path):
         daemon = DaemonWin(pidfile, istest, quotation_interval, project_path)
     elif os_name == 'Linux':
         pidfile = '/tmp/atrder_process.pid'
-        daemon = Daemon(pidfile, istest, quotation_interval, project_path, stdout='/dev/stdout', stderr='/dev/stderr')
+        daemon = Daemon(pidfile, istest, quotation_interval, project_path, stdout='daemon.log', stderr='daemon_err.log')
         
     if 'start' == action:
         daemon.start()
