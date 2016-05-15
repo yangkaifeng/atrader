@@ -117,7 +117,7 @@ class Daemon:
     
     def _run(self):    
         """ run your fun"""    
-        main.main(self.is_test, self.interval, self.project_path) #start
+        main.main(self.is_test, self.quotation_interval, self.project_path) #start
             
 class DaemonWin :
     
@@ -144,7 +144,7 @@ class DaemonWin :
         self.start()
         
     def _run(self):
-        main.main(self.is_test, self.interval, self.project_path) #start
+        main.main(self.is_test, self.quotation_interval, self.project_path) #start
     
 #     def get_pid_path(self):
 #         return os.path.join(os.getcwd(), 'tmp', 'atrader.pid')
@@ -211,7 +211,9 @@ def run(action, is_test, quotation_interval, project_path):
         daemon = DaemonWin(pidfile, istest, quotation_interval, project_path)
     elif os_name == 'Linux':
         pidfile = '/tmp/atrder_process.pid'
-        daemon = Daemon(pidfile, istest, quotation_interval, project_path, stdout='daemon.log', stderr='daemon_err.log')
+        logfile = os.path.join(os.getcwd(), 'daemon.log')
+        daemon = Daemon(pidfile, istest, quotation_interval, project_path, 
+                        stdout=logfile, stderr=logfile)
         
     if 'start' == action:
         daemon.start()
