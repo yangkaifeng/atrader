@@ -160,8 +160,8 @@ if __name__ == '__main__':
     code = "002024"
     print('************testing**************')
     for i in list(range(1,10)):
-        time.sleep(60*i)
         print('No.%s - balance: %s' % (i,acc.user.balance))
+        time.sleep(2)
         
 #     print(account.user.get_exchangebill("20160405","20160415"))
     
