@@ -98,7 +98,7 @@ class Account(object):
             result = self.user.entrust
             self.logger.debug("get entrust list: %s", result)
             if isinstance(result, list):
-                es = [e for e in self.user.entrust if e["entrust_no"]==entrust_no] 
+                es = [e for e in result if e["entrust_no"]==entrust_no] 
                 if es==[]:
                     _data = None # None means done
                 else:
@@ -156,12 +156,13 @@ class Entrust:
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.path.join(os.getcwd(), '..')
     print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
-    acc = Account('666623491885', is_test=False)
+    acc = Account('053000017966', is_test=False)
+#     acc = Account('666623491885', is_test=False)
     code = "002024"
     print('************testing**************')
-    for i in list(range(1,10)):
-        print('No.%s - balance: %s' % (i,acc.user.balance))
-        time.sleep(2)
+    print('get balance: %s' % acc.user.balance)
+#     result = acc.buy_or_sell(1, code, 10.1, 100)
+#     print('buy result %s' % result)
         
 #     print(account.user.get_exchangebill("20160405","20160415"))
     

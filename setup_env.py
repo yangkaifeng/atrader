@@ -37,8 +37,8 @@ def prod_data():
         s.save()
     print('insert %s' % ss)
 
-def config(code,unit_qty,total_num,start_price,step_ratio,lstop_ratio,hstop_ratio):
-    s = StrategyConfig.create(account_code='666623491885', stock_code=code, status=StrategyStatus.ACTIVE,
+def config(code,unit_qty,total_num,start_price,step_ratio,lstop_ratio,hstop_ratio,account='666623491885'):
+    s = StrategyConfig.create(account_code=account, stock_code=code, status=StrategyStatus.ACTIVE,
                           unit_qty=unit_qty, total_num=total_num, start_price=start_price, 
                           step_ratio=step_ratio, low_stop_ratio=lstop_ratio, high_stop_ratio=hstop_ratio)
     print('create config: %s' % s)

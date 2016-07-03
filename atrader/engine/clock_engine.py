@@ -33,7 +33,7 @@ class ClockEngine:
 
             if atime.is_holiday_today():
                 logger.debug('today is holiday')
-                time.sleep(60)
+                time.sleep(60*60*6) # sleep for 6 hours
                 pass
             elif atime.is_tradetime_now():  # 工作日，干活了
                 if self.trading_state == True:

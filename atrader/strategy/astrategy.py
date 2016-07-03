@@ -52,7 +52,22 @@ class AStrategy(BaseStrategy):
             if self.lock.acquire():
                 if self.is_active:
                     c_price = event.data[self.strategy_config.stock_code]["now"]
-                    self.logger.debug("current price: %s", c_price)
+                    
+                    if self.strategy_config.open_steps:
+                        _p0 = self.strategy_config.open_steps[-1].step_price
+                    elif self.strategy_config.completed_steps:
+                        _p0 = self.strategy_config.completed_steps[-1].step_price
+                    else:
+                        _p0 = self.strategy_config.start_price+self.strategy_config.step_margin
+                    
+                    _p1 = ahelper.format_money(self.strategy_config.start_price-self.strategy_config.total_num*self.strategy_config.step_margin)
+                    _p2 = ahelper.format_money(_p0-self.strategy_config.step_margin)
+                    _p3 = ahelper.format_money(_p0+self.strategy_config.step_margin)
+                    _p4 = ahelper.format_money(self.strategy_config.start_price+self.strategy_config.step_margin)
+                    self.logger.info("check %s:%s in %s-[%s,%s]-[%s-%s]-%s", 
+                                      self.strategy_config.stock_code, c_price, 
+                                      self.strategy_config.low_stop_price, _p1, _p2, _p3, _p4, self.strategy_config.high_stop_price)
+                    
                     return_code = self.__think(c_price)
                     
                     if return_code==100: #continue

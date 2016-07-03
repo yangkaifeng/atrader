@@ -59,7 +59,7 @@ class QuotationEngine:
                 continue
             event = Event(event_type=self.EventType, data=response_data)
             self.event_engine.put(event)
-#             logger.debug('push %s message: %s', event.event_type, event.data)
+            logger.info('push %s message: %s', event.event_type, event.data)
             time.sleep(self.push_interval)
 
     def fetch_quotation(self):
@@ -71,4 +71,8 @@ class QuotationEngine:
                 _dict[s] =  {"now":p,"ask1":p+0.01, "bid1":p-0.01}
             return _dict
         else:
-            return self.source.stocks(self.stock_codes)
+            _data = self.source.stocks(self.stock_codes)
+            _dict = dict()
+            for s in self.stock_codes:
+                _dict[s] =  {"now":_data[s]["now"]}
+            return _dict
