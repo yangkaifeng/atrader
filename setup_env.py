@@ -21,21 +21,21 @@ def create_tables():
     db.close()
     print('db.create_tables(%s)' % models)
 
-def test_data():
-    ss = [StrategyConfig(account_code='666623491885', stock_code='002024', unit_qty=100, total_num=10, 
-                        start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2),
-          StrategyConfig(account_code='666623491888', stock_code='000400', unit_qty=100, total_num=10, 
-                        start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
-    for s in ss:
-        s.save()
-    print('insert %s' % ss)
-    
-def prod_data():
-    ss = [StrategyConfig(account_code='666623491885', stock_code='000400', unit_qty=200, total_num=8, 
-                        start_price=15.87, step_ratio=0.0162, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
-    for s in ss:
-        s.save()
-    print('insert %s' % ss)
+# def test_data():
+#     ss = [StrategyConfig(account_code='666623491885', stock_code='002024', unit_qty=100, total_num=10, 
+#                         start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2),
+#           StrategyConfig(account_code='666623491888', stock_code='000400', unit_qty=100, total_num=10, 
+#                         start_price=10.0, step_ratio=0.01, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
+#     for s in ss:
+#         s.save()
+#     print('insert %s' % ss)
+#     
+# def prod_data():
+#     ss = [StrategyConfig(account_code='666623491885', stock_code='000400', unit_qty=200, total_num=8, 
+#                         start_price=15.87, step_ratio=0.0162, low_stop_ratio=0.1, high_stop_ratio=0.1, status=2)]
+#     for s in ss:
+#         s.save()
+#     print('insert %s' % ss)
 
 def config(code,unit_qty,total_num,start_price,step_ratio,lstop_ratio,hstop_ratio,account='666623491885'):
     s = StrategyConfig.create(account_code=account, stock_code=code, status=StrategyStatus.ACTIVE,
@@ -43,9 +43,9 @@ def config(code,unit_qty,total_num,start_price,step_ratio,lstop_ratio,hstop_rati
                           step_ratio=step_ratio, low_stop_ratio=lstop_ratio, high_stop_ratio=hstop_ratio)
     print('create config: %s' % s)
     
-def history(code, qty, price):
+def history(code, qty, price,account='666623491885'):
     configs = StrategyConfig.select_opens()
-    _matchs = [c for c in configs if c.stock_code==code]
+    _matchs = [c for c in configs if c.stock_code==code and c.account_code==account]
     if len(_matchs)!=1:
         print('no matching strategy configs for %s' % code)
         return
@@ -83,21 +83,35 @@ def history(code, qty, price):
         if _qty-last_step.step_qty<myconfig.unit_qty:
             print('remaining qty=%s' % _qty)
 
+def prod_0712():
+    config('000400',500,5,15.71,0.0265,0.01,0.05 )
+    config('600009',500,5,29.40,0.0372,0.01,0.05 )
+    config('002024',800,5,11.66,0.0360,0.01,0.05 )
+    config('000088',800,5,7.03 ,0.0458,0.01,0.05 )
+    config('600602',500,5,11.03,0.0585,0.01,0.05 )
+    config('002024',500,5,12.30,0.0569,0.01,0.05,account='053000017966')
+    config('600372',800,5,26.10,0.0568,0.01,0.05 )
     
+    history('000400',800,-13.54)
+    history('600009',5400,26.82)
+    history('002024',8600,9.95)
+    history('000088',1200,26.59)
+    history('600602',2800,20.58)
+    history('002024',3100,10.93,account='053000017966')
     
-@click.command()
-@click.option('--env', default='dev', help='dev|prod') 
-@click.option('--action', default='all', help='data|table|all')
-def run(env, action):
-    if action in ['table', 'all']:
-        create_tables()
-    if action in ['data', 'all']:
-        if env=='dev':
-            test_data()
-        elif env=='prod':
-            prod_data()
+# @click.command()
+# @click.option('--env', default='dev', help='dev|prod') 
+# @click.option('--action', default='all', help='data|table|all')
+# def run(env, action):
+#     if action in ['table', 'all']:
+#         create_tables()
+#     if action in ['data', 'all']:
+#         if env=='dev':
+#             test_data()
+#         elif env=='prod':
+#             prod_data()
 
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.getcwd()
     print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
-    run()
+#     run()
