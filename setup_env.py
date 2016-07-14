@@ -16,7 +16,7 @@ from atrader.model.step_position import *
 def create_tables():
     db.connect()
     models = [StrategyConfig, StepPosition]
-    db.drop_tables(models, safe=True)
+#     db.drop_tables(models, safe=True)
     db.create_tables(models)
     db.close()
     print('db.create_tables(%s)' % models)

@@ -70,7 +70,7 @@ class Account(object):
         self.logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
                     code, bs_type, price, qty, result)
         #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
-        if isinstance(result, dict) and result['cssweb_msg']=='请重新登录':
+        if isinstance(result, dict) and result['cssweb_msg'].find('重新登录')>=0:
             self.logger.warn('require to login again')
             raise NotLoginException('re-login')
             
@@ -84,7 +84,7 @@ class Account(object):
             _data = self.user.cancel_entrust(entrust_no)
             self.logger.info("ACTION - Cancel Entrust(%s): %s", entrust_no, _data)
             #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
-            if isinstance(_data, dict) and _data['cssweb_msg']=='请重新登录':
+            if isinstance(_data, dict) and _data['cssweb_msg'].find('重新登录')>=0:
                 self.logger.warn('require to login again')
                 raise NotLoginException('re-login')
             return _data
@@ -116,7 +116,7 @@ class Account(object):
                 #{'cssweb_code': 'success', 'cssweb_type': 'GET_CANCEL_LIST', 'item': None}
                 if result['cssweb_code']=='success' and result['item'] is None:
                     _data = None
-                elif result['cssweb_msg']=='请重新登录':
+                elif result['cssweb_msg'].find('重新登录')>=0:
                     self.logger.warn('require to login again')
                     raise NotLoginException('re-login')
                 else:
@@ -156,11 +156,13 @@ class Entrust:
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.path.join(os.getcwd(), '..')
     print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
-    acc = Account('053000017966', is_test=False)
-#     acc = Account('666623491885', is_test=False)
+#     acc = Account('053000017966', is_test=False)
+    acc = Account('666623491885', is_test=False)
     code = "002024"
     print('************testing**************')
     print('get balance: %s' % acc.user.balance)
+    print('get position: %s' % acc.user.position)
+    print('get entrust: %s' % acc.user.entrust)
 #     result = acc.buy_or_sell(1, code, 10.1, 100)
 #     print('buy result %s' % result)
         
