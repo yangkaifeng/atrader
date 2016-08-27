@@ -4,11 +4,11 @@ Created on 2016年3月20日
 @author: andy.yang
 '''
 from peewee import *
-import datetime as _datetime
+# import datetime as _datetime
 from atrader.model.base_model import BaseModel
 from atrader.util import ahelper
 from atrader.constants import *
-
+import atrader.util.time as atime
 
 class StrategyConfig(BaseModel):
     '''
@@ -23,8 +23,8 @@ class StrategyConfig(BaseModel):
     high_stop_ratio = DoubleField()
     low_stop_ratio = DoubleField()
     status = IntegerField(default=1) # 1-new, 2-open, 3-close
-    created_at = DateTimeField(default=_datetime.datetime.now)
-    updated_at = DateTimeField(default=_datetime.datetime.now)
+    created_at = DateTimeField(default=atime.now)
+    updated_at = DateTimeField(default=atime.now)
     
     @property
     def step_margin(self):

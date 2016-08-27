@@ -4,7 +4,7 @@ Created on 2016年4月29日
 @author: andy.yang
 '''
 from peewee import *
-import datetime as _datetime
+# import datetime as _datetime
 import logging
 import threading
 
@@ -16,7 +16,7 @@ from atrader.strategy.base_strategy import BaseStrategy
 from atrader.account import Account
 from atrader.strategy import astrategy
 from atrader.account import NotLoginException
-
+import atrader.util.time as atime
 
 
 
@@ -26,7 +26,7 @@ class AStrategy(BaseStrategy):
     def init(self):
         self.lock = threading.Lock()
         self.is_active = False
-        self.account = Account(self.strategy_config.account_code, self.is_test)
+        self.account = Account(self.strategy_config.account_code)
         self.logger.debug('init AStrategy')
     
     def clock(self, event):
@@ -49,52 +49,50 @@ class AStrategy(BaseStrategy):
     
     def strategy(self, event):
         try:
-            if self.lock.acquire():
-                if self.is_active:
-                    c_price = event.data[self.strategy_config.stock_code]["now"]
-                    
-                    if self.strategy_config.open_steps:
-                        _p0 = self.strategy_config.open_steps[-1].step_price
-                    elif self.strategy_config.completed_steps:
-                        _p0 = self.strategy_config.completed_steps[-1].step_price
-                    else:
-                        _p0 = self.strategy_config.start_price+self.strategy_config.step_margin
-                    
-                    _p1 = ahelper.format_money(self.strategy_config.start_price-(self.strategy_config.total_num-1)*self.strategy_config.step_margin)
-                    _p2 = ahelper.format_money(_p0-self.strategy_config.step_margin)
-                    _p3 = ahelper.format_money(_p0+self.strategy_config.step_margin)
-                    _p4 = ahelper.format_money(self.strategy_config.start_price+self.strategy_config.step_margin)
-                    self.logger.info("check %s: %s-[%s,%s]-*%s*-[%s-%s]-%s", 
-                                      self.strategy_config.stock_code,  
-                                      self.strategy_config.low_stop_price, _p1, _p2, c_price, _p3, _p4, self.strategy_config.high_stop_price)
-                    
-                    return_code = self.__think(c_price)
-                    
-                    if return_code==100: #continue
-                        self.logger.debug("continue to do the strategy immediately")
-                        self.lock.release()
-                        self.strategy(event)
-                    elif return_code==300: #close the strategy
-                        self.logger.info("close the strategy right now")
-                        self.logger.info("set strategy.status to close")
-                        self.strategy_config.status=StrategyStatus.CLOSED
-                        self.strategy_config.updated_at = _datetime.datetime.now()
-                        self.strategy_config.save()
-                        self.logger.info("remove the strategy from event_engine")
-                        self.event_engine.unregister(EventType.QUOTATION, self.run)
-                        self.event_engine.unregister(EventType.CLOCK, self.clock)
-                        self.is_active = False
-                    else:
-                        pass
+#             if self.lock.acquire():
+            if self.is_active:
+                c_price = event.data[self.strategy_config.stock_code]["now"]
+                
+                if self.strategy_config.open_steps:
+                    _p0 = self.strategy_config.open_steps[-1].step_price
+                elif self.strategy_config.completed_steps:
+                    _p0 = self.strategy_config.completed_steps[-1].step_price
+                else:
+                    _p0 = self.strategy_config.start_price+self.strategy_config.step_margin
+                
+                _p1 = ahelper.format_money(self.strategy_config.start_price-(self.strategy_config.total_num-1)*self.strategy_config.step_margin)
+                _p2 = ahelper.format_money(_p0-self.strategy_config.step_margin)
+                _p3 = ahelper.format_money(_p0+self.strategy_config.step_margin)
+                _p4 = ahelper.format_money(self.strategy_config.start_price+self.strategy_config.step_margin)
+                self.logger.info("check %s: %s-[%s,%s]-*%s*-[%s-%s]-%s", 
+                                  self.strategy_config.stock_code,  
+                                  self.strategy_config.low_stop_price, _p1, _p2, c_price, _p3, _p4, self.strategy_config.high_stop_price)
+                
+                return_code = self.__think(c_price)
+                
+                if return_code==100: #continue
+                    self.logger.debug("continue to do the strategy immediately")
+#                         self.lock.release()
+                    self.strategy(event)
+                elif return_code==300: #close the strategy
+                    self.logger.info("close the strategy right now")
+                    self.logger.info("set strategy.status to close")
+                    self.strategy_config.status=StrategyStatus.CLOSED
+                    self.strategy_config.updated_at = atime.now()
+                    self.strategy_config.save()
+                    self.logger.info("remove the strategy from event_engine")
+                    self.event_engine.unregister(EventType.QUOTATION, self.run)
+                    self.event_engine.unregister(EventType.CLOCK, self.clock)
+                    self.is_active = False
+            
         except NotLoginException:
             self.logger.warn('catch the NotLoginException')
             self.account.autologin()
-        finally:
-            try:
-                self.lock.release()
-            except:
-                self.logger.error('release unlocked lock')
-                pass
+#         finally:
+#             try:
+#                 self.lock.release()
+#             except:
+#                 self.logger.error('release unlocked lock')
         
     
     def __think(self, c_price):
@@ -205,12 +203,12 @@ class AStrategy(BaseStrategy):
                 elif dif_no==0:
                     no_list = list(range(1,last_no))
                 elif dif_no>0:
-                    self.logger.debug("sell all positions, from step:%s to step:0", last_no-1)
+                    self.logger.info("sell all positions, from step:%s to step:0", last_no-1)
                     no_list = list(range(0,last_no))
             else:
                 c_no = dif_no+2
                 no_list = list(range(c_no,last_no))
-                no_list.reverse()
+            no_list.reverse()
            
         self.logger.debug("no_list: %s", no_list) 
         for no in no_list:
@@ -275,7 +273,7 @@ class AStrategy(BaseStrategy):
         self.logger.info("Entrust(%s) completed! move open_steps to completed_steps!", _entrust_no)
         for p in self.strategy_config.open_steps:
             p.status = EntrustStatus.COMPLETED #completed
-            p.updated_at = _datetime.datetime.now()
+            p.updated_at = atime.now()
             p.save()
         self.strategy_config.completed_steps.extend(self.strategy_config.open_steps)
         self.strategy_config.open_steps.clear()

@@ -4,7 +4,7 @@ Created on 2016年3月25日
 @author: andy.yang
 '''
 import os
-import datetime
+# import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import random
@@ -13,6 +13,7 @@ import easytrader
 
 from atrader.constants import *
 from atrader.util import ahelper
+import atrader.util.time as atime
 
 class NotLoginException(Exception):
     def __init__(self, result=None):
@@ -24,14 +25,13 @@ class Account(object):
     INSTANCES = {}
     
     #singleton
-    def __new__(cls, account_code, is_test=True):
+    def __new__(cls, account_code):
         instance = cls.INSTANCES[account_code] if account_code in cls.INSTANCES else None
         
         if instance is None:
             instance = super(Account,cls).__new__(cls)
             instance.logger = ahelper.get_custom_logger('account.%s' % account_code)
-            instance.is_test = is_test
-            if not instance.is_test:
+            if not Config.IS_TEST:
                 instance.user = easytrader.use('ht', debug=False)
                 instance.user.prepare(ahelper.get_config_path('%s.json' % account_code))
             cls.INSTANCES[account_code] = instance
@@ -57,12 +57,8 @@ class Account(object):
     
     def buy_or_sell(self, bs_type, code, price, qty):
         result = []
-        if self.is_test:
-            result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
-#             if bs_type==1:
-#                 result = [{"entrust_no":datetime.datetime.now().strftime("%Y%m%d%H%M%S")}]
-#             else:
-#                 result = {'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
+        if Config.IS_TEST:
+            result = [{"entrust_no":atime.now().strftime("%Y%m%d%H%M%S")}]
         elif bs_type==1:
             result = self.__buy(code, price, qty)
         elif bs_type == 2:
@@ -78,7 +74,7 @@ class Account(object):
     
     def cancel_entrust(self, entrust_no):
         self.logger.info("ACTION - Cancel Entrust: %s", entrust_no)
-        if self.is_test:
+        if Config.IS_TEST:
             pass
         else:
             _data = self.user.cancel_entrust(entrust_no)
@@ -91,9 +87,10 @@ class Account(object):
         
     def get_entrust(self, entrust_no): 
         _data = None
-        if self.is_test:
-            _r = random.uniform(1,100)
-            _data = None if _r>=50 else Entrust(entrust_no, 2, 0)
+        if Config.IS_TEST:
+            _data = None
+#             _r = random.uniform(1,100)
+#             _data = None if _r>=50 else Entrust(entrust_no, 2, 0)
         else:
             result = self.user.entrust
             self.logger.debug("get entrust list: %s", result)
@@ -157,7 +154,7 @@ if __name__ == '__main__':
     Config.PROJECT_PATH = os.path.join(os.getcwd(), '..')
     print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
 #     acc = Account('053000017966', is_test=False)
-    acc = Account('666623491885', is_test=False)
+    acc = Account('666623491885')
     code = "002024"
     print('************testing**************')
     print('get balance: %s' % acc.user.balance)

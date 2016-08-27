@@ -7,10 +7,12 @@ import os
 
 class Config(object):
     PROJECT_PATH = os.getcwd()
+    IS_TEST = False
 
 class EventType(object):
     CLOCK = 'clock_tick'
     QUOTATION = 'quotation'
+    REPORT = 'report'
     
 class MarketState:
     OPEN = 'open'

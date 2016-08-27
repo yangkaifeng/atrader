@@ -3,10 +3,38 @@ from datetime import timedelta
 from functools import lru_cache
 
 import requests
-
 import time 
 
+from atrader.constants import Config
+from atrader.dummy_quotation_server import DummyQuotationServer
 
+def today():
+    if Config.IS_TEST:
+        _dt = DummyQuotationServer().date()
+        return datetime.date(_dt.year,_dt.month, _dt.day)
+    else:
+        return datetime.date.today()
+
+def localtime():
+    if Config.IS_TEST:
+        return now().timetuple()
+    else:
+        return time.localtime()
+
+def now():
+    if Config.IS_TEST:
+        _dt = DummyQuotationServer().date()
+        return datetime.datetime.now().replace(year=_dt.year,month=_dt.month,day=_dt.day,hour=_dt.hour)
+    else:
+        return datetime.datetime.now()
+ 
+def sleep(seconds):
+    if Config.IS_TEST:
+        time.sleep(seconds*0.2)
+    else:
+        time.sleep(seconds)
+     
+        
 @lru_cache()
 def is_holiday(day):
     weekday = datetime.datetime.strptime(day, '%Y%m%d').isoweekday()
@@ -18,12 +46,12 @@ def is_holiday(day):
 #     return True if res == "1" else False
 
 def is_holiday_today():
-    today = datetime.date.today().strftime('%Y%m%d')
-    return is_holiday(today)
+    td = today().strftime('%Y%m%d')
+    return is_holiday(td)
 
 
 def is_tradetime_now():
-    now_time = time.localtime()
+    now_time = localtime()
     now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
     if (9, 30, 0) <= now <= (11, 30, 0) or (13, 0, 0) <= now <= (15, 0, 0):
         return True
@@ -31,13 +59,13 @@ def is_tradetime_now():
 
 
 def is_noon_break():
-    now_time = time.localtime()
+    now_time = localtime()
     now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
     return (11, 30, 0) < now < (13, 0, 0)
 
 
 def calc_next_trade_time_delta_seconds():
-    now_time = datetime.datetime.now()
+    now_time = now()
     now = (now_time.hour, now_time.minute, now_time.second)
     if now < (9, 30, 0):
         next_trade_start = now_time.replace(hour=9, minute=30, second=0, microsecond=0)

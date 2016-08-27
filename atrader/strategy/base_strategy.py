@@ -4,12 +4,11 @@
 class BaseStrategy:
     name = 'BaseStrategy'
 
-    def __init__(self, event_engine, strategy_config, logger, is_test=True):
+    def __init__(self, event_engine, strategy_config, logger):
         self.event_engine = event_engine
         self.strategy_config = strategy_config
         custom_logger = self.log_handler()
         self.logger = logger if custom_logger is None else custom_logger
-        self.is_test = is_test
         self.init()
 
     def init(self):
@@ -54,10 +53,16 @@ class BaseStrategy:
 
     def run(self, event):
         try:
-            self.strategy(event)
+            if self.lock.acquire():
+                self.strategy(event)
         except Exception as e:
             self.logger.exception('unhandled exception during strategy.run()')
             raise
+        finally:
+            try:
+                self.lock.release()
+            except:
+                self.logger.error('release unlocked lock')
 
     def clock(self, event):
         pass

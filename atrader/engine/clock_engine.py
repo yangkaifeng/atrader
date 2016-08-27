@@ -1,9 +1,9 @@
 # coding: utf-8
-import datetime
-from threading import Thread
-
-import logging
+# import datetime
 import time
+from threading import Thread
+import logging
+
 from atrader.constants import EventType as etype, MarketState
 from atrader.util import time as atime
 from atrader.engine.event_engine import *
@@ -16,7 +16,7 @@ class ClockEngine:
     EventType = etype.CLOCK
 
     def __init__(self, event_engine):
-        self.start_time = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        self.start_time = atime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         self.event_engine = event_engine
         self.is_active = True
         self.clock_engine_thread = Thread(target=self.clocktick)
@@ -37,7 +37,7 @@ class ClockEngine:
                 pass
             elif atime.is_tradetime_now():  # 工作日，干活了
                 if self.trading_state == True:
-                    now_time = datetime.datetime.now()
+                    now_time = atime.now()
                     time_delta = now_time - self.start_time
                     seconds_delta = int(time_delta.total_seconds())
                     for delta in [0.5, 1, 5, 15, 30, 60]:

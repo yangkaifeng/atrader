@@ -21,19 +21,18 @@ logger = logging.getLogger(__name__)
 
 class MainEngine:
     
-    def __init__(self, is_test=True, quotation_interval=5):
-        self.is_test = is_test
+    def __init__(self, quotation_interval=5):
         event_engine = EventEngine()
         clock_engine = ClockEngine(event_engine)
         configs = StrategyConfig.select_opens()
         logger.debug('Total %s strategy_configs', len(configs))
         stock_codes = [c.stock_code for c in configs]
-        quotation_engine = QuotationEngine(event_engine=event_engine, stock_codes=stock_codes, push_interval=quotation_interval, is_test=is_test)
+        quotation_engine = QuotationEngine(event_engine=event_engine, stock_codes=stock_codes, push_interval=quotation_interval)
         
         event_engine.register(EventType.CLOCK, quotation_engine.clock)
         for config in configs:
             _log = ahelper.get_custom_logger('strateger.%s_%s' % (config.stock_code, config.id))
-            strategy = AStrategy(event_engine, config, _log, is_test)
+            strategy = AStrategy(event_engine, config, _log)
             logger.info('register strategy as event handler; %s', strategy)
             event_engine.register(EventType.QUOTATION, strategy.run)
             event_engine.register(EventType.CLOCK, strategy.clock)
@@ -44,7 +43,7 @@ class MainEngine:
     
     def start(self):
         logger.info("%s start atrader %s", "#"*10, "#"*10)
-        if self.is_test:
+        if Config.IS_TEST:
             logger.warning("%s TESTING MODE %s", "#"*6, "#"*6)
         self.event_engine.start()
         self.clock_engine.start()

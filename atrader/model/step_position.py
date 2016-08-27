@@ -4,11 +4,12 @@ Created on 2016年3月20日
 @author: andy.yang
 '''
 from peewee import *
-import datetime as _datetime
+# import datetime as _datetime
 from atrader.util import ahelper
 from atrader.model.base_model import BaseModel 
 from atrader.model.strategy_config import StrategyConfig
 from email.policy import default
+import atrader.util.time as atime
 
 class StepPosition(BaseModel):
     '''
@@ -24,8 +25,8 @@ class StepPosition(BaseModel):
     bs_type = IntegerField()
     entrust_no = CharField()
     status = IntegerField()
-    created_at = DateTimeField(default=_datetime.datetime.now)
-    updated_at = DateTimeField(default=_datetime.datetime.now)
+    created_at = DateTimeField(default=atime.now) #TODO: now or now()?
+    updated_at = DateTimeField(default=atime.now)
     
 #     class Meta:
 #         order_by = ('id') 
