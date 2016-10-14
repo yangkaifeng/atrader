@@ -1,30 +1,26 @@
 import datetime
 from datetime import timedelta
 from functools import lru_cache
-
+import tushare as ts
+import logging
 import requests
 import time 
 
-from atrader.constants import Config
+from atrader.constants import Config,MarketState
 from atrader.dummy_quotation_server import DummyQuotationServer
+
+logger = logging.getLogger(__name__)
 
 def today():
     if Config.IS_TEST:
-        _dt = DummyQuotationServer().date()
-        return datetime.date(_dt.year,_dt.month, _dt.day)
+        return DummyQuotationServer().now().date()
     else:
         return datetime.date.today()
 
-def localtime():
-    if Config.IS_TEST:
-        return now().timetuple()
-    else:
-        return time.localtime()
 
 def now():
     if Config.IS_TEST:
-        _dt = DummyQuotationServer().date()
-        return datetime.datetime.now().replace(year=_dt.year,month=_dt.month,day=_dt.day,hour=_dt.hour)
+        return DummyQuotationServer().now()
     else:
         return datetime.datetime.now()
  
@@ -33,37 +29,37 @@ def sleep(seconds):
         time.sleep(seconds*0.2)
     else:
         time.sleep(seconds)
-     
+
+def calc_date(date, days):
+    return date+datetime.timedelta(days=days)     
+
+def date2str(date,fmt='%Y-%m-%d'):
+    return datetime.datetime.strftime(date, fmt)
         
 @lru_cache()
-def is_holiday(day):
-    weekday = datetime.datetime.strptime(day, '%Y%m%d').isoweekday()
-    return weekday>5 #TODO - implement the legal holiday
-#     api = 'http://www.easybots.cn/api/holiday.php'
-#     params = {'d': day}
-#     rep = requests.get(api, params)
-#     res = rep.json()[day if isinstance(day, str) else day[0]]
-#     return True if res == "1" else False
+def is_holiday(date):
+    str_date = '%s/%s/%s' % (date.year, date.month, date.day)
+    df = ts.trade_cal()
+    holidays = df[df.isOpen == 0]['calendarDate'].values
+    return str_date in holidays
+    
 
 def is_holiday_today():
-    td = today().strftime('%Y%m%d')
-    return is_holiday(td)
+    return is_holiday(today())
 
 
-def is_tradetime_now():
-    now_time = localtime()
-    now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
-    if (9, 30, 0) <= now <= (11, 30, 0) or (13, 0, 0) <= now <= (15, 0, 0):
-        return True
-    return False
-
-
-def is_noon_break():
-    now_time = localtime()
-    now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
-    return (11, 30, 0) < now < (13, 0, 0)
-
-
+def get_trading_state():
+    now_time = now()
+    _now = (now_time.hour, now_time.minute, now_time.second)
+    if _now < (8, 0, 0) or _now > (15,0,0):
+        return MarketState.CLOSE
+    elif (8, 0, 0) <= _now < (9, 30, 0):
+        return MarketState.PRE_OPEN
+    elif (11, 30, 0) < _now < (13, 0, 0):
+        return MarketState.NOON_BREAK
+    else:
+        return MarketState.OPEN
+        
 def calc_next_trade_time_delta_seconds():
     now_time = now()
     now = (now_time.hour, now_time.minute, now_time.second)

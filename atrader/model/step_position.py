@@ -5,11 +5,9 @@ Created on 2016年3月20日
 '''
 from peewee import *
 # import datetime as _datetime
-from atrader.util import ahelper
+from atrader.util import ahelper,atime
 from atrader.model.base_model import BaseModel 
 from atrader.model.strategy_config import StrategyConfig
-from email.policy import default
-import atrader.util.time as atime
 
 class StepPosition(BaseModel):
     '''

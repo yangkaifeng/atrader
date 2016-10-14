@@ -80,6 +80,7 @@ class EventEngine:
             self.__handlers.pop(event_type)
 
     def put(self, event):
+        logger.debug('put event(%s) message:%s', event.event_type, event.data)
         self.__queue.put(event)
 
     @property

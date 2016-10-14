@@ -12,8 +12,8 @@ import time
 import easytrader
 
 from atrader.constants import *
-from atrader.util import ahelper
-import atrader.util.time as atime
+from atrader.util import ahelper,atime
+from atrader.dummy_quotation_server import DummyQuotationServer
 
 class NotLoginException(Exception):
     def __init__(self, result=None):
@@ -34,96 +34,119 @@ class Account(object):
             if not Config.IS_TEST:
                 instance.user = easytrader.use('ht', debug=False)
                 instance.user.prepare(ahelper.get_config_path('%s.json' % account_code))
+                instance.quotation_server = easyquotation.use("lf")
             cls.INSTANCES[account_code] = instance
             instance.logger.info("initialized Account(%s)", account_code)
             
         return instance
         
     
-#     def get_stock(self,code):
-#         if IS_TEST:
-#             p = ahelper.format_money(self.last_p*random.uniform(0.99,1.01))
-#             self.last_p = p
-# #             logger2.debug("current price: %s", p)
-#             return {"now":p,"ask1":p+0.01, "bid1":p-0.01}
-#         else:
-#             d = self.quotation.stocks(code)[code]
-#             return {"now":d["now"],"ask1":d["ask1"], "bid1":d["bid1"]}    
-#     
-    
+   
     def autologin(self):
         self.logger.info('account auto-login')
         self.user.autologin()
     
-    def buy_or_sell(self, bs_type, code, price, qty):
+    def buy_or_sell(self, bs_type, symbol, price, qty, retry_count=1):
         result = []
         if Config.IS_TEST:
-            result = [{"entrust_no":atime.now().strftime("%Y%m%d%H%M%S")}]
-        elif bs_type==1:
-            result = self.__buy(code, price, qty)
+            _code = symbol + '_' + atime.now().strftime("%H%M%S%f")
+            DummyQuotationServer().add_order(symbol, _code, qty, price, bs_type)
+            return _code
+        
+        if bs_type==1:
+            result = self.__buy(symbol, price, qty)
         elif bs_type == 2:
-            result = self.__sell(code, price, qty)
+            result = self.__sell(symbol, price, qty)
         self.logger.info("BUY_OR_SELL - (stock:%s, bs_type:%s, price:%s, qty:%s), return raw data:%s", 
-                    code, bs_type, price, qty, result)
+                    symbol, bs_type, price, qty, result)
         #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
         if isinstance(result, dict) and result['cssweb_msg'].find('重新登录')>=0:
-            self.logger.warn('require to login again')
-            raise NotLoginException('re-login')
+            if retry_count>0:
+                self.logger.warn('require to login again')
+                self.autologin()
+                return self.buy_or_sell(bs_type, symbol, price, qty, retry_count=retry_count-1)
+            else:
+                raise Exception('FAIL TO LOGIN......')
             
         return result[0]["entrust_no"] if result else None
     
-    def cancel_entrust(self, entrust_no):
-        self.logger.info("ACTION - Cancel Entrust: %s", entrust_no)
+    def cancel_order(self, order_code, retry_count=1):
+        self.logger.info("ACTION - Cancel Entrust: %s", order_code)
         if Config.IS_TEST:
-            pass
-        else:
-            _data = self.user.cancel_entrust(entrust_no)
-            self.logger.info("ACTION - Cancel Entrust(%s): %s", entrust_no, _data)
-            #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
-            if isinstance(_data, dict) and _data['cssweb_msg'].find('重新登录')>=0:
-                self.logger.warn('require to login again')
-                raise NotLoginException('re-login')
-            return _data
+            return None
         
-    def get_entrust(self, entrust_no): 
-        _data = None
-        if Config.IS_TEST:
-            _data = None
-#             _r = random.uniform(1,100)
-#             _data = None if _r>=50 else Entrust(entrust_no, 2, 0)
-        else:
-            result = self.user.entrust
-            self.logger.debug("get entrust list: %s", result)
-            if isinstance(result, list):
-                es = [e for e in result if e["entrust_no"]==entrust_no] 
-                if es==[]:
-                    _data = None # None means done
-                else:
-                    _data = Entrust(es[0]["entrust_no"], 
-                                   es[0]["entrust_status"], #TODO - status mapping, "1" - pending, "2" - done
-                                   es[0]["business_price"], 
-                                   es[0]["business_amount"],
-                                   es[0]["stock_code"], 
-                                   es[0]["entrust_price"], 
-                                   es[0]["entrust_amount"], 
-                                   es[0]["entrust_bs"] # "1" - buy "2" - sell
-                                   )
-            elif isinstance(result, dict):
-                self.logger.warn("raw data to get the entrust(%s): %s", entrust_no, result)
-                #{'cssweb_code': 'success', 'cssweb_type': 'GET_CANCEL_LIST', 'item': None}
-                if result['cssweb_code']=='success' and result['item'] is None:
-                    _data = None
-                elif result['cssweb_msg'].find('重新登录')>=0:
-                    self.logger.warn('require to login again')
-                    raise NotLoginException('re-login')
-                else:
-                    self.logger.error("UNEXPECTED DATA to get the entrust(%s)", entrust_no)
-                    raise Exception('UNEXPECTED DATA')
+        _data = self.user.cancel_entrust(order_code)
+        self.logger.info("ACTION - Cancel Entrust(%s): %s", order_code, _data)
+        #{'cssweb_code': 'error', 'item': None, 'cssweb_type': 'STOCK_BUY', 'cssweb_msg': '请重新登录'}
+        if isinstance(_data, dict) and _data['cssweb_msg'].find('重新登录')>=0:
+            if retry_count>0:
+                self.logger.warn('require to login again')
+                self.autologin()
+                return self.cancel_order(self, order_code, retry_count=retry_count-1)
             else:
-                self.logger.error("UNEXPECTED DATA to get the entrust(%s): %s", entrust_no, result)
-                raise Exception('UNEXPECTED DATA')
+                raise Exception('FAIL TO LOGIN......')
         return _data
+    
+    def get_orders(self, retry_count=1):
+        if Config.IS_TEST:
+            return DummyQuotationServer().get_orders()
+        
+        result = self.user.entrust
+        self.logger.debug("get entrust list: %s", result)
+        if isinstance(result, list):
+            return [{'order_code':e['entrust_no'],'actual_qty':e["business_amount"]} for e in result]
+        elif isinstance(result, dict):
+            self.logger.warn("raw data to get the entrusts: %s", result)
+            #{'cssweb_code': 'success', 'cssweb_type': 'GET_CANCEL_LIST', 'item': None}
+            if result['cssweb_code']=='success' and result['item'] is None:
+                return []
+            elif result['cssweb_msg'].find('重新登录')>=0:
+                if retry_count>0:
+                    self.logger.warn('require to login again')
+                    self.autologin()
+                    return self.get_orders(self, retry_count=retry_count-1)
+                else:
+                    raise Exception('FAIL TO LOGIN......')
+            else:
+                self.logger.error("UNEXPECTED DATA to get the entrusts")
+                raise Exception('UNEXPECTED DATA')
+        else:
+            self.logger.error("UNEXPECTED DATA to get the entrusts: %s", result)
+            raise Exception('UNEXPECTED DATA')
+    
+    
+    def get_order(self, order_code): 
+        if Config.IS_TEST:
+            return DummyQuotationServer().get_order(order_code)
+        
+        es = [e for e in self.get_orders() if e["order_code"]==order_code] 
+        if es==[]:
+            return None # None means done
+        else:
+            es[0]
+#             return Entrust(es[0]["entrust_no"], 
+#                            es[0]["entrust_status"], #TODO - status mapping, "1" - pending, "2" - done
+#                            es[0]["business_price"], 
+#                            es[0]["business_amount"],
+#                            es[0]["stock_code"], 
+#                            es[0]["entrust_price"], 
+#                            es[0]["entrust_amount"], 
+#                            es[0]["entrust_bs"] # "1" - buy "2" - sell
+#                            )
    
+   
+    def get_real_stocks(self, codes):
+        if Config.IS_TEST:
+            _dict = dict()
+            qs = DummyQuotationServer()
+            for s in codes:
+                _dict[s] =  {"now":qs.get_price(s), "close":qs.get_last_close(s)}
+            return _dict
+        else:
+            return self.quotation_server.stocks(codes)
+            
+    
+    
     def __buy(self, code, price, qty):
         self.logger.info("ACTION - BUY! stock=%s, price=%s, qty=%s", code, price, qty)
         return self.user.buy(code,price, qty)
@@ -134,25 +157,21 @@ class Account(object):
         return self.user.sell(code, price, qty)
     
     
-class Entrust:
-    def __init__(self, no, status, actual_price, actual_qty=0, stock=None, price=None, qty=None, bs_type=None):
-        self.entrust_no = no
-        self.stock = stock
-        self.price = price
-        self.qty = qty
-        self.status = status
-        self.bs_type = bs_type
-        self.actual_price = actual_price
-        self.actual_qty = actual_qty            
+# class Entrust:
+#     def __init__(self, no, status, actual_price, actual_qty=0, stock=None, price=None, qty=None, bs_type=None):
+#         self.entrust_no = no
+#         self.stock = stock
+#         self.price = price
+#         self.qty = qty
+#         self.status = status
+#         self.bs_type = bs_type
+#         self.actual_price = actual_price
+#         self.actual_qty = actual_qty            
         
-    def __repr__(self):
-        return "Entrust(entrust_no=%s, stock=%s, price=%s,qty=%s, status=%s,bs_type=%s, actual_price=%s,actual_qty=%s"\
-             % (self.entrust_no, self.stock, self.price, self.qty, self.status, self.bs_type,
-                self.actual_price,self.actual_qty)   
         
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.path.join(os.getcwd(), '..')
-    print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
+    print('Config: IS_TEST=%s, PROJECT_PATH=%s' % (Config.IS_TEST,Config.PROJECT_PATH))
 #     acc = Account('053000017966', is_test=False)
     acc = Account('666623491885')
     code = "002024"

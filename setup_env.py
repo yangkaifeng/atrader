@@ -11,11 +11,16 @@ from atrader.constants import *
 from atrader.model.base_model import *
 from atrader.model.strategy_config import * 
 from atrader.model.step_position import *
+from atrader.model.strategy import Strategy
+from atrader.model.strategy_detail import StrategyDetail
+from atrader.model.trade_order import TradeOrder
+from atrader.model.trade_step import TradeStep
+from constants import StrategyType, StrategyStatus
 
 
 def create_tables():
     db.connect()
-    models = [StrategyConfig, StepPosition]
+    models = [Strategy, StrategyDetail, TradeOrder, TradeStep]
 #     db.drop_tables(models, safe=True)
     db.create_tables(models)
     db.close()
@@ -43,6 +48,16 @@ def config(code,unit_qty,total_num,start_price,step_ratio,lstop_ratio,hstop_rati
                           step_ratio=step_ratio, low_stop_ratio=lstop_ratio, high_stop_ratio=hstop_ratio)
     print('create config: %s' % s)
     
+def new_strategy(symbol,account_code,budget,fix_loss,param1,param2,type=StrategyType.KLINE_WEEK,status=StrategyStatus.OPEN):
+    Strategy.create(symbol=symbol,
+                   account_code=account_code,
+                   budget=budget,
+                   fix_loss=fix_loss,
+                   param1=param1,
+                   param2=param2,
+                   type=type,
+                   status=status)
+
 def history(code, qty, price,account='666623491885'):
     configs = StrategyConfig.select_opens()
     _matchs = [c for c in configs if c.stock_code==code and c.account_code==account]
@@ -111,7 +126,11 @@ def prod_0712():
 #         elif env=='prod':
 #             prod_data()
 
+
+def test_1007():
+    new_strategy('000400', 'test_account', 100000, 20000, 2, 5)
+
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.getcwd()
-    print('PROJECT_PATH=%s' % Config.PROJECT_PATH)
-#     run()
+    create_tables()
+    test_1007()

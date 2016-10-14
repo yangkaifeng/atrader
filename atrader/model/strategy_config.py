@@ -6,9 +6,8 @@ Created on 2016年3月20日
 from peewee import *
 # import datetime as _datetime
 from atrader.model.base_model import BaseModel
-from atrader.util import ahelper
+from atrader.util import ahelper,atime
 from atrader.constants import *
-import atrader.util.time as atime
 
 class StrategyConfig(BaseModel):
     '''

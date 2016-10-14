@@ -7,7 +7,7 @@ import random
 import logging
 
 from atrader.constants import EventType as etype, MarketState, Config
-from atrader.util import ahelper, time as atime
+from atrader.util import ahelper, atime
 from atrader.engine.event_engine import *
 from atrader.dummy_quotation_server import DummyQuotationServer
 

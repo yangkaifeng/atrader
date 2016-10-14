@@ -4,16 +4,6 @@
 class BaseStrategy:
     name = 'BaseStrategy'
 
-    def __init__(self, event_engine, strategy_config, logger):
-        self.event_engine = event_engine
-        self.strategy_config = strategy_config
-        custom_logger = self.log_handler()
-        self.logger = logger if custom_logger is None else custom_logger
-        self.init()
-
-    def init(self):
-        # 进行相关的初始化操作
-        pass
 
     def strategy(self, event):
         """:param event event.data 为所有股票的信息，结构如下
@@ -67,5 +57,4 @@ class BaseStrategy:
     def clock(self, event):
         pass
 
-    def log_handler(self):
-        pass
+

@@ -12,22 +12,23 @@ from atrader.constants import *
 from atrader.model.base_model import *
 from atrader.model.strategy_config import * 
 from atrader.model.step_position import *
-from atrader.strategy.base_strategy import BaseStrategy
 from atrader.account import Account
-from atrader.strategy import astrategy
 from atrader.account import NotLoginException
-import atrader.util.time as atime
+from atrader.util import atime
 
 
 
-class AStrategy(BaseStrategy):
-    name = 'AStrategy'
+class StrategyA(object):
+    name = 'StrategyA'
     
-    def init(self):
+    def __init__(self, event_engine, strategy_config):
+        self.event_engine = event_engine
+        self.strategy_config = strategy_config
+        self.logger = ahelper.get_custom_logger('strateger.%s_%s' % (strategy_config.stock_code, strategy_config.id))
         self.lock = threading.Lock()
         self.is_active = False
         self.account = Account(self.strategy_config.account_code)
-        self.logger.debug('init AStrategy')
+        self.logger.debug('init StrategyA')
     
     def clock(self, event):
         if event.data==MarketState.OPEN:
@@ -47,6 +48,19 @@ class AStrategy(BaseStrategy):
         else:
             pass
     
+    def run(self, event):
+        try:
+            if self.lock.acquire():
+                self.strategy(event)
+        except Exception as e:
+            self.logger.exception('unhandled exception during strategy.run()')
+            raise
+        finally:
+            try:
+                self.lock.release()
+            except:
+                self.logger.error('release unlocked lock')
+                
     def strategy(self, event):
         try:
 #             if self.lock.acquire():
@@ -148,7 +162,7 @@ class AStrategy(BaseStrategy):
                                sum([e.step_qty for e in self.strategy_config.open_steps]))
             return return_code
         
-        e = self.account.get_entrust(_entrust_no)
+        e = self.account.get_order(_entrust_no)
         if e is None: # None means uncanceled/done
             self.__complete_entrust()            
             return_code = 100
@@ -289,13 +303,13 @@ class AStrategy(BaseStrategy):
             return
         
         self.logger.info('check entrust before canceling')
-        e = self.account.get_entrust(_entrust_no)
+        e = self.account.get_order(_entrust_no)
         if e is None: # None means uncanceled/done
             self.logger.warn('entrust is completed before canceling')
             self.__complete_entrust()            
         else:
-            actual_qty = e.actual_qty #deal with the partial completed case
-            self.account.cancel_entrust(_entrust_no)
+            actual_qty = e['actual_qty'] #deal with the partial completed case
+            self.account.cancel_order(_entrust_no)
             for p in self.strategy_config.open_steps:
                 if p.step_qty <= actual_qty:
                     actual_qty -= p.step_qty
