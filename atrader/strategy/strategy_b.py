@@ -23,6 +23,9 @@ from atrader.util import ahelper,atime
 from atrader.engine.event_engine import Event
 from atrader.constants import Config
 from atrader.dummy_quotation_server import DummyQuotationServer
+from constants import BsType
+from pygments.lexers._mql_builtins import c_types
+import code
 
 
 
@@ -30,14 +33,20 @@ from atrader.dummy_quotation_server import DummyQuotationServer
 class StrategyB(object):
     name = 'StrategyB'
     
-    def __init__(self, event_engine, strategy):
-        self.event_engine = event_engine
-        self.strategy = strategy
+    def __init__(self, event_engine, clock_engine, strategy, interval=1):
         self.logger = ahelper.get_custom_logger('strateger.%s_%s' % (strategy.symbol, strategy.id))
+        self.logger.info('__init__: %s(id=%s)', self.name, strategy.id)
+        self._thread = threading.Thread(target=self.__run)
+        self.is_started = False
+        self.completed_code = None
+        self.interval = interval
+        self.event_engine = event_engine
+        self.clock_engine = clock_engine
+        self.market_state = None
+        self.strategy = strategy        
         self.lock = threading.Lock()
         self.is_pending_close = False
-        self.account = Account(self.strategy.account_code)
-        self.logger.info('init %s', self.name)
+        self.account = Account(self.strategy.account_code)        
         self.open_steps = {} #{'order_code':[step list]}
         self.last_step = None
         self.strategy_detail = None
@@ -48,14 +57,15 @@ class StrategyB(object):
         
         details = StrategyDetail.select_open(strategy.id)
         if len(details)==0:
-            self.logger.info('new strategy_detail')
-            self.__new_strategy_detail()
+            self.logger.info('__init__: create new strategy_detail')
+            self.__new_strategy_detail(is_init=True)
         elif len(details)>1:
-            raise Exception('UNEXPECTED - more than one open strategy details of strategy(id=%s)' % strategy.id)
+            raise Exception('__init__: UNEXPECTED - more than one open strategy details of strategy(id=%s)' % strategy.id)
         else:
             self.strategy_detail = details[0]
-            self.cash_available = self.strategy_detail.calc_end_cash()
-            self.lot_available = self.strategy_detail.calc_end_qty()
+            self.logger.info('__init__: load existing strategy_detail(id=%s)', self.strategy_detail.id)
+            self.cash_available = self.strategy_detail.init_cash+TradeOrder.calc_revenue(self.strategy_detail.id)
+            self.lot_available = TradeOrder.calc_end_qty(self.strategy_detail.id)
             last_list = TradeStep.select_last(self.strategy_detail.id)
             if last_list:
                 self.last_step = last_list[0]
@@ -66,74 +76,95 @@ class StrategyB(object):
                     s.updated_at = atime.now()
                     s.save() 
                 else:
-                    self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':s.order_code, 'strategy_id':self.strategy.id}))
+#                     self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':s.order_code, 'strategy_id':self.strategy.id, 'action':'add'}))
                     if s.order_code in self.open_steps:
                         self.open_steps[s.order_code].append(s)
                     else:
                         self.open_steps[s.order_code]=[s]
-        
+        self.logger.info('__init__: cash_available=%s, lot_available=%s',self.cash_available,self.lot_available)
     
+    def start(self):
+        if not self.is_started:
+            self.is_started = True        
+            self._thread.start()
+            self.logger.info('%s is started', __name__)
+
+    def stop(self):
+        self.is_started = False
+        self.logger.info('%s is stopped', __name__)
+        
+    def __run(self):
+        while self.is_started:
+            if self.completed_code!=None:
+                if self.completed_code in self.open_steps:
+                    self.logger.info('__run: deal with completed order_code(%s)', self.completed_code)
+                    self.__complete_order(self.completed_code)
+                    self.__cancel_order()
+                    if self.is_pending_close:
+                        self.__new_strategy_detail()
+                    else:
+                        self.__place_order()
+                else:
+                    self.logger.warn('__run: UNEXPECTED - no order(%s) in open_steps: %s', self.completed_code, list(self.open_steps.keys()))
+                self.completed_code = None
+                
+            if self.clock_engine.market_state!=self.market_state:
+                self.market_state=self.clock_engine.market_state
+                if self.market_state in (MarketState.OPEN, MarketState.PRE_OPEN):
+                    self.logger.info("__run: market is %s - place orders", self.market_state)
+                    if self.strategy_detail:
+                        self.cash_available = self.strategy_detail.init_cash+TradeOrder.calc_revenue(self.strategy_detail.id)
+                        self.lot_available = TradeOrder.calc_end_qty(self.strategy_detail.id)
+                        self.logger.info('__run: cash_available=%s, lot_available=%s',self.cash_available,self.lot_available)
+                    else:
+                        self.__new_strategy_detail()
+                    if self.strategy_detail:
+                        self.__place_order()
+                elif self.market_state==MarketState.CLOSE:
+                    self.logger.info("__run: market is close - cancel orders")
+                    self.__cancel_order()
+                        
+            atime.sleep(self.interval)
+            
+            
     def handle_event(self, event):
-        if self.lock.acquire():
-            self.logger.info('handle message - type:%s, data:%s', event.event_type, event.data)
-            if event.event_type == EventType.CLOCK:
-                self.__clock_handler(event)
-            elif event.event_type==self.strategy.id:
-                self.__order_handler(event)
-            else:
-                self.logger.warning('unhandled event(%s)', event.event_type)
-        self.lock.release()
-    
-    #clock event handler
-    
-    def __clock_handler(self, event):
-        if event.data in (MarketState.OPEN, MarketState.PRE_OPEN):
-            self.logger.info("market is %s - place orders", event.data)
-            if self.strategy_detail:
-                self.cash_available = self.strategy_detail.calc_end_cash()
-                self.lot_available = self.strategy_detail.calc_end_qty()
-            self.__place_order()
-        elif event.data==MarketState.CLOSE:
-            self.logger.info("market is close - cancel orders")
-            self.__cancel_order()
-        
-        if Config.IS_TEST and event.data in (MarketState.PRE_OPEN, MarketState.NOON_BREAK, MarketState.CLOSE):
-            DummyQuotationServer().pop_price(self.strategy.symbol)
-        
-        
-    #order event handler
-    def __order_handler(self, event):
-        code = event.data
-        if code in self.open_steps:
-            self.__complete_order(code)
-            self.__cancel_order()
-            if self.is_pending_close:
-                self.__new_strategy_detail()
-            else:
-                self.__place_order()
-        elif not Config.IS_TEST:
-            self.logger.error('UNEXPECTED - no order(%s) in open_steps: %s', event.data, self.open_steps)
-            raise Exception('UNEXPECTED    ')
+        self.logger.info('handle_event: event_type=%s, data=%s', event.event_type, event.data)
+        if event.event_type==self.strategy.id:
+            self.completed_code = event.data
+        else:
+            self.logger.warning('unhandled event(%s)', event.event_type)
+
     
     # create strategy_detail
-    def __new_strategy_detail(self):
+    def __new_strategy_detail(self, is_init=False):
+        self.open_steps.clear()
+        self.last_step = None
         init_cash = self.strategy.budget
         #close old strategy_detail
         if self.strategy_detail: 
-            self.strategy_detail.end_cash = self.strategy_detail.calc_end_cash() 
+            self.logger.info('__new_strategy_detail: close old strategy_detail(id=%s)', self.strategy_detail.id)
+            remaining_qty = TradeOrder.calc_end_qty(self.strategy_detail.id, include_today=True)
+            if remaining_qty>0:
+                self.logger.warning('__new_strategy_detail: cannot close old strategy_detail cause remaining_qty=%s', remaining_qty)
+                return
+            self.strategy_detail.end_cash = ahelper.format_money(self.strategy_detail.init_cash+TradeOrder.calc_revenue(self.strategy_detail.id))
             self.strategy_detail.is_active = False
             self.strategy_detail.updated_at = atime.now()
             self.strategy_detail.save()
             self.is_pending_close=False
             init_cash = self.strategy_detail.end_cash
+            self.strategy_detail = None
             #stop this strategy
-            if self.strategy.type==StrategyType.SINGLE or self.strategy.budget-init_cash>=self.strategy.fix_loss:
+            actual_loss = self.strategy.budget-init_cash
+            if self.strategy.type==StrategyType.SINGLE or actual_loss >=self.strategy.fix_loss:
+                self.logger.info('__new_strategy_detail: close strategy(actual_loss=%s, allowed_loss=%s)', actual_loss, self.strategy.fix_loss)
                 self.__close_strategy()
                 return
-        self.strategy_detail = None
-        self.open_steps.clear()
-        self.last_step = None
-        
+            
+        if not is_init and atime.today().weekday()>0:
+            self.logger.info('__new_strategy_detail: Only Monday we can recreate new strategy_detail')
+            return
+            
         #create new strategy detail
         _start = atime.date2str(atime.calc_date(atime.today(), -30))
         _end = atime.date2str(atime.today())
@@ -159,6 +190,7 @@ class StrategyB(object):
                                 init_cash=init_cash
                                 )
         new_sd.save()
+        self.logger.info('__new_strategy_detail: created new strategy_detail(id=%s)', new_sd.id)
         self.strategy_detail = new_sd
         self.lot_available = 0 
         self.cash_available = init_cash
@@ -167,17 +199,18 @@ class StrategyB(object):
     
     #stop the strategy
     def __close_strategy(self):
+        self.logger.info('__close_strategy: close strategy and unregister all events with it')
         self.strategy.status = StrategyStatus.CLOSE
         self.strategy.updated_at = atime.now()
         self.strategy.save()
         self.event_engine.unregister(EventType.CLOCK, self.handle_event)
-        self.event_engine.unregister(EventType.ORDER, self.handle_event)
+        self.event_engine.unregister(self.strategy.id, self.handle_event)
     
     
     #place orders
     def __place_order(self):
         if self.open_steps:
-            self.logger.info('Not place order - existing open_steps: %s', self.open_steps)
+            self.logger.info('__place_order: Not place order - existing open_steps: %s', self.open_steps)
             return
         
         stock_data = self.account.get_real_stocks([self.strategy.symbol])
@@ -187,21 +220,11 @@ class StrategyB(object):
         c_price = stock_data[self.strategy.symbol]['now']
         _no = self.strategy_detail.step_no(c_price)
         
-        self.logger.info('place_order: _no=%s, c_price=%s, last_step=%s', _no, c_price, self.last_step)
+        self.logger.info('__place_order: _no=%s, c_price=%s, last_step=%s', _no, c_price, self.last_step)
         if _no==FixedFlag.BUY_ALL:
             self.__new_open_steps(self.strategy_detail.step_count-1, c_price)
-            if Config.IS_TEST and self.open_steps=={}:
-                _code = self.strategy.symbol + '_' + atime.now().strftime("%H%M%S%f")
-                DummyQuotationServer().add_order(self.strategy.symbol, _code, 100, self.price_limit_up, BsType.SELL)
-                self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, 
-                                            data={'order_code':_code, 'strategy_id':self.strategy.id, 'action':'add'}))
         elif _no==FixedFlag.SELL_ALL:
             self.__new_open_steps(0, c_price)
-            if Config.IS_TEST and self.open_steps=={}:
-                _code = self.strategy.symbol + '_' + atime.now().strftime("%H%M%S%f")
-                DummyQuotationServer().add_order(self.strategy.symbol, _code, 100, self.price_limit_down, BsType.BUY)
-                self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, 
-                                            data={'order_code':_code, 'strategy_id':self.strategy.id, 'action':'add'}))
         elif _no in (FixedFlag.HIGH_STOP, FixedFlag.LOW_STOP):
             self.__new_open_steps(0, c_price)#sell all
             if self.open_steps:
@@ -233,7 +256,7 @@ class StrategyB(object):
     
       
     def __new_open_steps(self, _no, _price):
-        self.logger.info('prepare open steps for (step_no=%s, price=%s)', _no, _price)
+        self.logger.info('__new_open_steps: prepare open steps for (step_no=%s, price=%s)', _no, _price)
         _steps = []
         last_step = self.last_step
         no_list = []
@@ -250,25 +273,26 @@ class StrategyB(object):
             no_list = list(range(_no,last_step.step_no))
             no_list.reverse()
            
-        self.logger.info("c_type=%s, no_list=%s", c_type, no_list) 
+        self.logger.info("__new_open_steps: c_type=%s, no_list=%s", c_type, no_list) 
         
+        lot_available = self.lot_available
         for n in no_list:
             if last_step is None:
                 qty = self.strategy_detail.init_qty
                 source = last_step
             elif last_step.source is None:
-                self.logger.info("normal step - link to the first step")
+                self.logger.info("__new_open_steps: normal step - link to the first step")
                 qty = last_step.step_qty+self.strategy_detail.step_delta_qty if last_step.bs_type==c_type else self.strategy_detail.init_qty
                 source = last_step
             elif last_step.step_no==0:
                 if c_type==BsType.BUY:
-                    self.logger.info("abnormal step - start a new loop!")
+                    self.logger.info("__new_open_steps: special step - start a new loop!")
                     qty = self.strategy_detail.init_qty
                     source = None
                 else:
-                    raise Exception('UNEXPECTED - cannot sell stocks after last_step.step_no==0')
+                    raise Exception('__new_open_steps: UNEXPECTED - cannot sell stocks after last_step.step_no==0')
             elif last_step.step_qty==last_step.source.step_qty:
-                self.logger.info("abnormal step - zero cleaning the last step chain! ")
+                self.logger.info("__new_open_steps: special step - zero cleaning the last step chain! ")
                 ss_step = last_step.source if last_step.source.source is None else last_step.source.source
                 if last_step.bs_type==c_type:
                     qty = ss_step.step_qty+self.strategy_detail.step_delta_qty
@@ -277,13 +301,19 @@ class StrategyB(object):
                     qty = self.strategy_detail.init_qty
                     source = ss_step
             else:
-                self.logger.info("normal step - %s", c_type)
                 if last_step.bs_type==c_type:
                     qty = last_step.step_qty+self.strategy_detail.step_delta_qty
                     source = last_step.source
                 else:
                     qty = self.strategy_detail.init_qty
                     source = last_step
+                self.logger.info("__new_open_steps: normal step - %s qty=%s", c_type, qty)
+            if c_type==BsType.SELL:
+                if qty<=lot_available:
+                    lot_available = lot_available-qty
+                else:
+                    self.logger.info('__new_open_steps: no enough lot, sell qty=%s while lot_available=%s', qty, lot_available)
+                    break
             _step = TradeStep(source=source,
                               step_no=n,
                               step_qty=qty,
@@ -297,25 +327,25 @@ class StrategyB(object):
             
         self.__buy_or_sell(_steps)
             
-    @db.atomic()
+#     @db.atomic()
     def __buy_or_sell(self, steps):
         #check conditions to place order
         if steps==[]: 
             return
         price = steps[-1].price
         if price<self.price_limit_down or price>self.price_limit_up:
-            self.logger.warning('CANNOT PLACE ORDER BECAUSE PRICE(%s) IS NOT BETWEEN PRICE LIMIT(%s, %s)', price, self.price_limit_down, self.price_limit_up)
+            self.logger.warning('__buy_or_sell: CANNOT PLACE ORDER BECAUSE PRICE(%s) IS NOT BETWEEN PRICE LIMIT(%s, %s)', price, self.price_limit_down, self.price_limit_up)
             return 
         bs_type = steps[-1].bs_type
         qty = sum([e.step_qty for e in steps])
         if bs_type==BsType.SELL and qty>self.lot_available:
-            self.logger.warning('CANNOT PLACE ORDER BECAUSE no enough lot: actual %s but require %s', self.lot_available, qty)
+            self.logger.warning('__buy_or_sell: CANNOT PLACE ORDER BECAUSE no enough lot: actual %s but require %s', self.lot_available, qty)
             return
         elif bs_type==BsType.BUY and qty*price>self.cash_available:
-            self.logger.warning('CANNOT PLACE ORDER BECAUSE no enough budget: actual %s but require %s', self.cash_available, qty*price)
+            self.logger.warning('__buy_or_sell: CANNOT PLACE ORDER BECAUSE no enough budget: actual %s but require %s', self.cash_available, qty*price)
             return
         
-        self.logger.info('BUY_OR_SELL - %s', steps)
+        self.logger.info('__buy_or_sell: %s', steps)
         code = self.account.buy_or_sell(bs_type, self.strategy.symbol, price, qty)
         for s in steps:
             s.order_code = code
@@ -323,17 +353,18 @@ class StrategyB(object):
             s.save()
         
         self.open_steps[code] = steps
-        self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':code, 'strategy_id':self.strategy.id, 'action':'add'}))
+#         self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':code, 'strategy_id':self.strategy.id, 'action':'add'}))
      
     
     @db.atomic()
     def __complete_order(self, order_code):
-        self.logger.info('complete order:%s', order_code)
+        self.logger.info('__complete_order: order_code=%s', order_code)
         steps = self.open_steps.pop(order_code)
-        for s in steps:
-            s.status = TradeStatus.COMPLETED
-            s.updated_at = atime.now()
-            s.save()
+        TradeStep.update_status(order_code, TradeStatus.COMPLETED)
+#         for s in steps:
+#             s.status = TradeStatus.COMPLETED
+#             s.updated_at = atime.now()
+#             s.save()
         self.last_step = steps[-1]
         #save trade order
         self.__save_trade_order(order_code, self.last_step.price, sum([s.qty for s in steps]), self.last_step.bs_type)
@@ -341,36 +372,43 @@ class StrategyB(object):
         
     @db.atomic()             
     def __cancel_order(self):
-        self.logger.info('cancel other orders: %s', self.open_steps.keys())
+        self.logger.info('__cancel_order: order_code in %s', self.open_steps.keys())
         for code,_steps in self.open_steps.items():
-            self.logger.info('check order(%s) before canceling', code)
+            self.logger.info('__cancel_order: check order(%s) before canceling', code)
             e = self.account.get_order(code)
+            self.logger.info('__cancel_order: get_order(%s) ', code)
             self.account.cancel_order(code)
-            self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':code, 'strategy_id':self.strategy.id, 'action':'delete'}))
+            self.logger.info('__cancel_order: cancel_order(%s) ', code)
+#             self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':code, 'strategy_id':self.strategy.id, 'action':'delete'}))
             actual_qty = e['actual_qty'] if e else 0 #deal with the partial completed case
-            for p in _steps:
-                if p.step_qty <= actual_qty:
-                    actual_qty -= p.step_qty
-                    p.status = TradeStatus.COMPLETED
-                elif 0 < actual_qty < p.step_qty:
-                    p.qty = actual_qty #part completed
-                    p.status = TradeStatus.COMPLETED
-                    actual_qty = 0
-                else:
-                    p.status = TradeStatus.CANCELED # canceled
-                p.updated_at = atime.now()
-                p.save()
-                if p.status==TradeStatus.COMPLETED:
-                    self.last_step = p
-            
-            #save trade order
-            if actual_qty>0:
+            if actual_qty==0:
+                TradeStep.update_status(code, TradeStatus.CANCELED)
+            else:
+                for p in _steps:
+                    if p.step_qty <= actual_qty:
+                        actual_qty -= p.step_qty
+                        p.status = TradeStatus.COMPLETED
+                    elif 0 < actual_qty < p.step_qty:
+                        p.qty = actual_qty #part completed
+                        p.status = TradeStatus.COMPLETED
+                        actual_qty = 0
+                    else:
+                        p.status = TradeStatus.CANCELED # canceled
+                    p.updated_at = atime.now()
+                    p.save()
+                    if p.status==TradeStatus.COMPLETED:
+                        self.last_step = p
+                
+                #save trade order
                 self.__save_trade_order(code, self.last_step.price, actual_qty, self.last_step.bs_type)
+        
         #clear open_steps
         self.open_steps.clear()
+        self.logger.debug('__cancel_order: clear open_steps-%s', self.open_steps.keys())
         
     
     def __save_trade_order(self, code, price, qty, bs_type):
+        self.logger.info('__save_trade_order: code=%s, %s qty=%s, price=%s', code, bs_type, qty, price)
         order = TradeOrder(strategy_detail=self.strategy_detail,
                            order_code=code,
                            price=price,
@@ -382,4 +420,6 @@ class StrategyB(object):
             self.cash_available = ahelper.format_money(self.cash_available - order.fee - order.qty*order.price)
         else:
             self.cash_available = ahelper.format_money(self.cash_available - order.fee + order.qty*order.price)
+            self.lot_available = self.lot_available-order.qty
+        self.logger.info('__save_trade_order: cash_available=%s, lot_available=%s',self.cash_available,self.lot_available)
             

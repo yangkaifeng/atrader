@@ -45,27 +45,34 @@ class MainEngine:
 #             event_engine.register(EventType.CLOCK, a.clock)
         
         strategies = Strategy.select_opens()
+        sbs = []
         for s in strategies:
-            b = StrategyB(event_engine,s)
-            logger.info('register strategy as event handler; %s', b)
+            b = StrategyB(event_engine,clock_engine,s)
+            sbs.append(b)
+            logger.info('__init__: register strategy(id=%s)', s.id)
             event_engine.register(s.id, b.handle_event)
-            event_engine.register(EventType.CLOCK, b.handle_event)
-            order_engine = OrderEngine(event_engine,Account(s.account_code))
-            event_engine.register(EventType.CLOCK, order_engine.handle_event)
-            event_engine.register(EventType.ORDER_ENGINE, order_engine.handle_event)
-        
-        if Config.IS_TEST:
-            dummy_server = DummyQuotationServer()
-            dummy_server.add_symbols([s.symbol for s in strategies])
-            dummy_server.start1()
+#             event_engine.register(EventType.CLOCK, b.handle_event)            
+        self.sbs = sbs
         
     
     def start(self):
         logger.info("%s start atrader %s", "#"*10, "#"*10)
         if Config.IS_TEST:
             logger.warning("%s TESTING MODE %s", "#"*6, "#"*6)
+            dummy_server = DummyQuotationServer()
+            dummy_server.init(list(set([s.strategy.symbol for s in self.sbs])), self.sbs)
+            dummy_server.start1()
         self.event_engine.start()
         self.clock_engine.start()
+        for code in list(set([s.strategy.account_code for s in self.sbs])):
+            sbs = [b for b in self.sbs if b.strategy.account_code==code]
+            order_engine = OrderEngine(self.event_engine,self.clock_engine, Account(code),sbs)
+#             self.event_engine.register(EventType.CLOCK, order_engine.handle_event)
+#             self.event_engine.register(EventType.ORDER_ENGINE, order_engine.handle_event)
+            order_engine.start()
+        
+        for sb in self.sbs:
+            sb.start()
     
     def stop(self):
         logger.info("%s stop atrader %s", "#"*10, "#"*10)

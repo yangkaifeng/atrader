@@ -26,7 +26,7 @@ def now():
  
 def sleep(seconds):
     if Config.IS_TEST:
-        time.sleep(seconds*0.2)
+        time.sleep(seconds*0.01)
     else:
         time.sleep(seconds)
 

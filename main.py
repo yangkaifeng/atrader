@@ -28,5 +28,6 @@ def main(is_test, quotation_interval, project_path=None):
     MainEngine(quotation_interval).start()
 
 if __name__ == '__main__':  
-    DummyQuotationServer.START='2016-05-01'  
+    DummyQuotationServer.START='2016-05-08'
+    DummyQuotationServer.END_DATE = '2016-05-18'
     main(True, 1)

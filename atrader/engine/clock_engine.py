@@ -18,8 +18,8 @@ class ClockEngine:
         self.event_engine = event_engine
         self.is_active = True
         self.clock_engine_thread = Thread(target=self.clocktick)
-        self.sleep_time = 0.01 if Config.IS_TEST else 1
-        self.trading_state = None
+        self.sleep_time = 1
+        self.market_state = None
 
     def start(self):
         self.clock_engine_thread.start()
@@ -32,15 +32,15 @@ class ClockEngine:
                 time.sleep(60*60*6) # sleep for 6 hours
             else:
                 state = atime.get_trading_state()
-                if self.trading_state!=state:
+                if self.market_state!=state:
                     self.push_event_type(state)
-                time.sleep(self.sleep_time)
-
+                atime.sleep(self.sleep_time)
+        logger.info('clock_engine process is stoped')
+        
     def push_event_type(self, state):
         event = Event(event_type=self.EventType, data=state)
-        self.trading_state = state
+        self.market_state = state
         self.event_engine.put(event)
-        logger.debug('push clock message: %s', state)
 
     def stop(self):
         self.is_active = False

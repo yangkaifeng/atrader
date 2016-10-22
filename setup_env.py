@@ -18,10 +18,11 @@ from atrader.model.trade_step import TradeStep
 from constants import StrategyType, StrategyStatus
 
 
-def create_tables():
+def create_tables(drop_flag=False):
     db.connect()
     models = [Strategy, StrategyDetail, TradeOrder, TradeStep]
-#     db.drop_tables(models, safe=True)
+    if drop_flag:
+        db.drop_tables(models, safe=True)
     db.create_tables(models)
     db.close()
     print('db.create_tables(%s)' % models)
@@ -132,5 +133,5 @@ def test_1007():
 
 if __name__ == '__main__':
     Config.PROJECT_PATH = os.getcwd()
-    create_tables()
+    create_tables(drop_flag=True)
     test_1007()

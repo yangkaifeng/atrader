@@ -3,12 +3,13 @@ Created on 2016年4月16日
 
 @author: andy.yang
 '''
-import os
+# import os
 from peewee import *
+from playhouse.pool import PooledMySQLDatabase
 from atrader.util import ahelper,atime
 
 connection_str = ahelper.file2dict(ahelper.get_config_path('database.json'))
-db = MySQLDatabase(**connection_str)
+db = PooledMySQLDatabase(**connection_str)
 
 class BaseModel(Model):
     

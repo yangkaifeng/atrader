@@ -50,7 +50,7 @@ class Account(object):
         result = []
         if Config.IS_TEST:
             _code = symbol + '_' + atime.now().strftime("%H%M%S%f")
-            DummyQuotationServer().add_order(symbol, _code, qty, price, bs_type)
+#             DummyQuotationServer().add_order(symbol, _code, qty, price, bs_type)
             return _code
         
         if bs_type==1:

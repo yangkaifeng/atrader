@@ -33,6 +33,12 @@ class TradeStep(BaseModel):
     def select_open(cls, detail_id):
         return cls.select().join(StrategyDetail).where(cls.status==TradeStatus.OPEN, StrategyDetail.id==detail_id).order_by(cls.id.asc())
     
+    @classmethod
+    def update_status(cls, order_code, status):
+        query = cls.update(status=status, updated_at=atime.now()).where(cls.order_code==order_code)
+        return query.execute()
+    
+    
     def __repr__(self):
         if self.source is None:
             return "\nTradeStep{id:%s,source:None,step_no:%s,step_price:%s,step_qty:%s,price:%s,bs_type:%s,order_code:%s,status:%s,strategy_detail_id:%s,created_at:%s}"\
@@ -44,4 +50,5 @@ class TradeStep(BaseModel):
     
     
     class Meta:
-        db_table = 'trade_step'      
+        db_table = 'trade_step'
+        only_save_dirty = True      

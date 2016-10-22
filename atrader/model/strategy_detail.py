@@ -26,7 +26,7 @@ class StrategyDetail(BaseModel):
     low_stop_ratio = DoubleField()
     is_active = BooleanField(default=True)
     init_cash = DoubleField(default=0)
-    end_cach = DoubleField(default=0)
+    end_cash = DoubleField(default=0)
 
       
     @property
@@ -69,24 +69,14 @@ class StrategyDetail(BaseModel):
         else:
             return int((self.top_price - _price)//self.step_delta_price)
     
-    def calc_end_cash(self):
-        revenue = sum([_calc_money(o) for o in self.orders])
-        return ahelper.format_money(self.init_cash + revenue)
-    
-    def calc_end_qty(self):
-        _day = atime.now().day
-        return sum([o.qty if o.bs_type==BsType.BUY else -1*o.qty for o in self.orders if o.created_at.day!=_day])
-    
+     
     @classmethod
     def select_open(cls, strategy_id):
         return cls.select().join(Strategy).where(cls.is_active==True, Strategy.id==strategy_id)
     
     class Meta:
         db_table = 'strategy_detail'
+        only_save_dirty = True
     
-def _calc_money(order):
-    if order.bs_type==BsType.BUY:
-        return (order.qty*order.price+order.fee)*-1
-    else:
-        return order.qty*order.price-order.fee
+
     

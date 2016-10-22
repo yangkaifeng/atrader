@@ -50,6 +50,7 @@ class EventEngine:
             # 若存在,则按顺序将事件传递给处理函数执行
             for handler in self.__handlers[event.event_type]:
                 handler(event)
+#                 Thread(target=handler, args=(event,)).start()
 
     def start(self):
         """引擎启动"""
@@ -80,7 +81,7 @@ class EventEngine:
             self.__handlers.pop(event_type)
 
     def put(self, event):
-        logger.debug('put event(%s) message:%s', event.event_type, event.data)
+        logger.info('put event(%s) message:%s', event.event_type, event.data)
         self.__queue.put(event)
 
     @property
