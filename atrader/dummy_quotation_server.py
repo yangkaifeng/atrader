@@ -44,23 +44,17 @@ class DummyQuotationServer(object):
 #             hours.sort()
             for h in hours:
                 if self.hour>=10 and self.hour<15:
-                    has_order = True
-                    has_price = True
-                    
-                    while has_order and has_price:
-                        prices = [lst for lst in self.price_list[self.hour].values() if len(lst)>0]
-                        has_price = len(prices)>0
-                        orders = [l for l in [len(s.open_steps) for s in self.sbs] if l>0]
-                        has_order = len(orders)>0
-                        if (not has_price) or (not has_order):
-                            break;
-                        else:
-                            time.sleep(0.5)
+                    prices = [lst for lst in self.price_list[self.hour].values() if len(lst)>0]
+                    has_price = len(prices)>0
+                    orders = [l for l in [len(s.open_steps) for s in self.sbs] if l>0]
+                    has_order = len(orders)>0
+                    if has_order and has_price:
+                        time.sleep(0.2)
                 
                 self.hour = h
                 for symbol in self.data.keys():
                     self.data[symbol]['price'] = self._pop_price(symbol)
-                time.sleep(0.5)
+                time.sleep(0.2)
             
             is_continue = self.__next_day()
             if not is_continue:
@@ -153,7 +147,7 @@ class DummyQuotationServer(object):
         
     
     def _is_completed_order(self, order):
-        price = self._pop_price(order['symbol'])
+        price = self.get_price(order['symbol'])
         is_completed = False
         if self.hour<9 or self.hour>=15:
             return False

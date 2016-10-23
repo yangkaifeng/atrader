@@ -43,16 +43,19 @@ class OrderEngine(object):
                     self.completed_orders.clear()
                     
             if self.market_state==MarketState.OPEN and self.sbs:
+                #TODO- open_steps is changing
+                all_codes = {}
+                for sb in self.sbs:
+                    for c in sb.open_steps:
+                        all_codes[c] = sb.strategy.id
                 open_codes = [e['order_code'] for e in self.account.get_orders()]
-                for s in self.sbs:
-                    logger.debug('__run: open_steps - %s', list(s.open_steps.keys()))
-                    for code in s.open_steps:
-                        if (code not in self.completed_orders) and (code not in open_codes):
-                            event = Event(event_type=s.strategy.id, data=code)
-                            self.event_engine.put(event)
-                            self.completed_orders.append(code)
-                            logger.info('push message: complete order of strategy(id=%s): %s', event.event_type, event.data)
-                            break
+                logger.debug('__run: checl all orders - %s', all_codes)
+                for code,sid in all_codes.items():
+                    if (code not in self.completed_orders) and (code not in open_codes):
+                        event = Event(event_type=sid, data=code)
+                        self.event_engine.put(event)
+                        self.completed_orders.append(code)
+                        logger.info('push message: complete order of strategy(id=%s): %s', event.event_type, event.data)
                     
             atime.sleep(self.interval)
             

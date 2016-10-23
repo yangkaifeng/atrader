@@ -27,7 +27,11 @@ class TradeStep(BaseModel):
     
     @classmethod
     def select_last(cls, detail_id):
-        return cls.select().join(StrategyDetail).where(cls.status==TradeStatus.COMPLETED, StrategyDetail.id==detail_id).order_by(cls.id.desc()).limit(1)
+        data = cls.select().join(StrategyDetail).where(cls.status==TradeStatus.COMPLETED, StrategyDetail.id==detail_id).order_by(cls.id.desc()).limit(1)
+        if data:
+            return data[0]
+        else:
+            return None
     
     @classmethod
     def select_open(cls, detail_id):
@@ -38,7 +42,10 @@ class TradeStep(BaseModel):
         query = cls.update(status=status, updated_at=atime.now()).where(cls.order_code==order_code)
         return query.execute()
     
-    
+#     @classmethod
+#     def bulk_insert(cls, rows):
+#         return cls.insert_many(rows).execute()
+
     def __repr__(self):
         if self.source is None:
             return "\nTradeStep{id:%s,source:None,step_no:%s,step_price:%s,step_qty:%s,price:%s,bs_type:%s,order_code:%s,status:%s,strategy_detail_id:%s,created_at:%s}"\

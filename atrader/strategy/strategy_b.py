@@ -66,9 +66,7 @@ class StrategyB(object):
             self.logger.info('__init__: load existing strategy_detail(id=%s)', self.strategy_detail.id)
             self.cash_available = self.strategy_detail.init_cash+TradeOrder.calc_revenue(self.strategy_detail.id)
             self.lot_available = TradeOrder.calc_end_qty(self.strategy_detail.id)
-            last_list = TradeStep.select_last(self.strategy_detail.id)
-            if last_list:
-                self.last_step = last_list[0]
+            self.last_step = TradeStep.select_last(self.strategy_detail.id)
             _day = atime.now().day
             for s in TradeStep.select_open(self.strategy_detail.id):
                 if s.created_at.day != _day:#cancel old steps
@@ -327,7 +325,7 @@ class StrategyB(object):
             
         self.__buy_or_sell(_steps)
             
-#     @db.atomic()
+    @db.atomic()
     def __buy_or_sell(self, steps):
         #check conditions to place order
         if steps==[]: 
@@ -351,9 +349,7 @@ class StrategyB(object):
             s.order_code = code
             s.qty = s.step_qty
             s.save()
-        
         self.open_steps[code] = steps
-#         self.event_engine.put(Event(event_type=EventType.ORDER_ENGINE, data={'order_code':code, 'strategy_id':self.strategy.id, 'action':'add'}))
      
     
     @db.atomic()
@@ -361,10 +357,6 @@ class StrategyB(object):
         self.logger.info('__complete_order: order_code=%s', order_code)
         steps = self.open_steps.pop(order_code)
         TradeStep.update_status(order_code, TradeStatus.COMPLETED)
-#         for s in steps:
-#             s.status = TradeStatus.COMPLETED
-#             s.updated_at = atime.now()
-#             s.save()
         self.last_step = steps[-1]
         #save trade order
         self.__save_trade_order(order_code, self.last_step.price, sum([s.qty for s in steps]), self.last_step.bs_type)
